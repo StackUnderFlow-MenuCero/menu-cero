@@ -1,6 +1,6 @@
 # Datos de entrada de Menú Cero
 
-Este documento es el contrato de datos del equipo. Dice qué trae cada CSV, en qué unidades y qué valores son inválidos. La carga (`carga.py`, #12) valida exactamente estas reglas, y el algoritmo (#10, #19) y la app trabajan con lo que resulta.
+Este documento es el contrato de datos del equipo. Dice qué trae cada CSV, en qué unidades y qué valores son inválidos. La carga (`carga.py`, #13) valida exactamente estas reglas, y el algoritmo (#11, #20) y la app trabajan con lo que resulta.
 
 Aquí se define el formato (#7). La caracterización del negocio tipo (platillos, vida útil y costos realistas) se agrega en #8.
 
@@ -50,8 +50,8 @@ Conversiones aproximadas de piezas a kg (valores de referencia; #8 los confirma)
 | `cantidad_kg` | decimal | kg | sí | ≥ 0 |
 | `fecha_caducidad` | fecha | `AAAA-MM-DD` | sí | fecha válida |
 | `costo_kg` | decimal | MXN/kg | sí | ≥ 0 |
-| `kcal_kg` | decimal | kcal/kg | no | ≥ 0; solo para la extensión nutricional (#32) |
-| `proteina_g_kg` | decimal | g/kg | no | ≥ 0; solo para la extensión nutricional (#32) |
+| `kcal_kg` | decimal | kcal/kg | no | ≥ 0; solo para la extensión nutricional (#33) |
+| `proteina_g_kg` | decimal | g/kg | no | ≥ 0; solo para la extensión nutricional (#33) |
 
 ```csv
 ingrediente_id,nombre,cantidad_kg,fecha_caducidad,costo_kg
@@ -108,7 +108,7 @@ REC07,0,10
   - Un platillo que ya se vende mucho tiene un valor bajo, porque promoverlo agrega pocas ventas.
   - Con 0, el platillo nunca se propone como menú del día.
 
-Los ejemplos de las tres tablas son fragmentos ilustrativos; el juego completo de ejemplo está en `data/ejemplo/` (#9).
+Los ejemplos de las tres tablas son fragmentos ilustrativos; el juego completo de ejemplo está en `data/ejemplo/` (#10).
 
 ## Validación
 
@@ -164,7 +164,7 @@ recetas.csv, fila 9, columna kg_por_porcion: debe ser mayor que 0 («0»)
 
 ## Cómo se usan estos datos
 
-Con la fecha de referencia, cada ingrediente produce los valores que usa el algoritmo. El detalle está en `docs/diseno.md` (#17).
+Con la fecha de referencia, cada ingrediente produce los valores que usa el algoritmo. El detalle está en `docs/diseno.md` (#18).
 
 | Valor | Cálculo |
 |---|---|
