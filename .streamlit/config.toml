@@ -1,0 +1,9 @@
+# Configuración de Streamlit para Menú Cero (se lee al ejecutar desde la raíz del repositorio).
+
+[browser]
+# No enviar estadísticas de uso: el prototipo debe funcionar sin internet.
+gatherUsageStats = false
+
+[server]
+# No pedir correo en la terminal la primera vez que se ejecuta.
+showEmailPrompt = false
