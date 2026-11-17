@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verificar:
+    name: verificar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Instalar dependencias
+        run: uv sync --locked
+      - name: Lint
+        run: uv run ruff check
+      - name: Formato
+        run: uv run ruff format --check
+      - name: Pruebas
+        run: uv run pytest --cov=menucero --cov-report=term-missing

@@ -1,0 +1,20 @@
+# Entorno y cachés de Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Datos sintéticos generados (se regeneran con menucero-generar)
+data/sintetico/
+
+# Editores y sistema
+.vscode/
+.idea/
+.DS_Store
