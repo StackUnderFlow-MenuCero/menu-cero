@@ -1,0 +1,13 @@
+ingrediente_id,nombre,cantidad_kg,fecha_caducidad,costo_kg
+ING01,Crema ácida,2.0,2026-11-17,70.00
+ING02,Champiñones,-1.5,2026-11-18,95.00
+ING03,Pechuga de pollo,8.0,2026-11-20,120.00
+ING04,Tortilla de maíz,6.0,2026-11-19,25.00
+ING05,Bistec de res,5.0,2026-11-18,180.00
+ING06,Queso fresco,2.0,2026-11-20,120.00
+ING07,Jitomate saladet,5.0,2026-11-21,25.00
+ING08,Cebolla blanca,3.0,2026-11-27,30.00
+ING09,Chile poblano,2.5,2026-11-18,45.00
+ING10,Calabacita,3.0,2026-11-19,30.00
+ING11,Carne molida de res,2.0,2026-11-19,130.00
+ING12,Papa blanca,4.0,2026-11-30,35.00

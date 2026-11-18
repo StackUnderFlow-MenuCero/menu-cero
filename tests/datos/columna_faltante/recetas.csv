@@ -1,0 +1,24 @@
+receta_id,platillo,tipo,ingrediente_id,kg_por_porcion
+REC01,Pollo a la crema con champiñones,fijo,ING03,0.150
+REC01,Pollo a la crema con champiñones,fijo,ING01,0.040
+REC01,Pollo a la crema con champiñones,fijo,ING02,0.030
+REC02,Tacos de bistec,fijo,ING05,0.120
+REC02,Tacos de bistec,fijo,ING04,0.090
+REC03,Enchiladas suizas,fijo,ING03,0.100
+REC03,Enchiladas suizas,fijo,ING01,0.050
+REC03,Enchiladas suizas,fijo,ING04,0.080
+REC04,Chiles rellenos de queso,fijo,ING09,0.150
+REC04,Chiles rellenos de queso,fijo,ING06,0.070
+REC04,Chiles rellenos de queso,fijo,ING07,0.080
+REC04,Chiles rellenos de queso,fijo,ING08,0.020
+REC05,Picadillo de res con papa,fijo,ING11,0.120
+REC05,Picadillo de res con papa,fijo,ING12,0.080
+REC05,Picadillo de res con papa,fijo,ING10,0.050
+REC05,Picadillo de res con papa,fijo,ING07,0.040
+REC05,Picadillo de res con papa,fijo,ING08,0.015
+REC06,Calabacitas con queso,secundaria,ING10,0.150
+REC06,Calabacitas con queso,secundaria,ING06,0.040
+REC06,Calabacitas con queso,secundaria,ING07,0.050
+REC06,Calabacitas con queso,secundaria,ING08,0.020
+REC07,Crema de champiñones,secundaria,ING02,0.080
+REC07,Crema de champiñones,secundaria,ING01,0.050
