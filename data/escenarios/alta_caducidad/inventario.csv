@@ -1,0 +1,41 @@
+ingrediente_id,nombre,cantidad_kg,fecha_caducidad,costo_kg
+ING01,Crema ácida,1.92,2026-11-24,70.00
+ING02,Champiñones,0.73,2026-11-24,95.00
+ING03,Pechuga de pollo,14.10,2026-11-25,120.00
+ING04,Tortilla de maíz,9.00,2026-11-25,25.00
+ING05,Bistec de res,10.50,2026-11-26,180.00
+ING06,Queso fresco,1.60,2026-11-26,120.00
+ING07,Jitomate saladet,9.72,2026-11-26,25.00
+ING08,Cebolla blanca,3.90,2026-12-05,30.00
+ING09,Chile poblano,1.10,2026-11-24,45.00
+ING10,Calabacita,1.00,2026-11-25,30.00
+ING11,Carne molida de res,4.00,2026-11-24,130.00
+ING12,Papa blanca,2.08,2026-12-08,35.00
+ING13,Filete de tilapia,1.64,2026-11-23,100.00
+ING14,Huevo,6.75,2026-12-17,45.00
+ING15,Lechuga romana,2.20,2026-11-26,45.00
+ING16,Aguacate Hass,1.52,2026-11-23,40.00
+ING17,Chile serrano,0.40,2026-11-29,40.00
+ING18,Limón,0.72,2026-12-02,30.00
+ING19,Chuleta de cerdo,4.56,2026-11-25,110.00
+ING20,Pierna y muslo de pollo,4.00,2026-11-24,100.00
+ING21,Nopales,0.80,2026-11-23,25.00
+ING22,Tomate verde,0.72,2026-11-30,28.00
+ING23,Cilantro,0.25,2026-11-25,40.00
+ING24,Zanahoria,0.76,2026-12-04,20.00
+ING25,Chayote,0.80,2026-11-30,25.00
+ING26,Ejotes,0.40,2026-11-26,35.00
+ING27,Elote,1.00,2026-11-25,20.00
+ING28,Brócoli,0.52,2026-11-26,40.00
+ING29,Pimiento morrón,0.76,2026-11-28,50.00
+ING30,Melón,1.16,2026-11-25,22.00
+ING31,Papaya,1.16,2026-11-25,25.00
+ING32,Piña,1.16,2026-11-26,22.00
+ING33,Plátano,3.00,2026-11-25,22.00
+ING34,Bolillo,3.00,2026-11-25,35.00
+ING35,Queso chihuahua,2.48,2026-11-29,130.00
+ING36,Yogur natural,0.92,2026-11-29,60.00
+ING37,Leche entera,8.58,2026-11-26,28.00
+ING38,Mantequilla,0.52,2026-12-19,130.00
+ING39,Jamón de pavo,1.56,2026-11-27,110.00
+ING40,Chorizo,1.10,2026-11-29,95.00

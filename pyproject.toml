@@ -30,12 +30,12 @@ packages = ["src/menucero"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "tests", "prototipo"]
+src = ["src", "tests", "prototipo", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["prototipo"]
+pythonpath = ["prototipo", "scripts"]
 addopts = "-q"
