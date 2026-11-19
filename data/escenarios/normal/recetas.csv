@@ -1,0 +1,118 @@
+receta_id,platillo,tipo,ingrediente_id,kg_por_porcion
+REC01,Pollo a la crema con champiñones,fijo,ING03,0.150
+REC01,Pollo a la crema con champiñones,fijo,ING01,0.040
+REC01,Pollo a la crema con champiñones,fijo,ING02,0.030
+REC02,Tacos de bistec,fijo,ING05,0.120
+REC02,Tacos de bistec,fijo,ING04,0.090
+REC03,Enchiladas suizas,fijo,ING03,0.100
+REC03,Enchiladas suizas,fijo,ING01,0.050
+REC03,Enchiladas suizas,fijo,ING04,0.080
+REC04,Chiles rellenos de queso,fijo,ING09,0.150
+REC04,Chiles rellenos de queso,fijo,ING06,0.070
+REC04,Chiles rellenos de queso,fijo,ING07,0.080
+REC04,Chiles rellenos de queso,fijo,ING08,0.020
+REC05,Picadillo de res con papa,fijo,ING11,0.120
+REC05,Picadillo de res con papa,fijo,ING12,0.080
+REC05,Picadillo de res con papa,fijo,ING10,0.050
+REC05,Picadillo de res con papa,fijo,ING07,0.040
+REC05,Picadillo de res con papa,fijo,ING08,0.015
+REC08,Chilaquiles rojos con pollo,fijo,ING04,0.090
+REC08,Chilaquiles rojos con pollo,fijo,ING03,0.080
+REC08,Chilaquiles rojos con pollo,fijo,ING07,0.060
+REC08,Chilaquiles rojos con pollo,fijo,ING01,0.020
+REC08,Chilaquiles rojos con pollo,fijo,ING06,0.020
+REC09,Milanesa de pollo con arroz y frijoles,fijo,ING03,0.150
+REC09,Milanesa de pollo con arroz y frijoles,fijo,ING14,0.030
+REC09,Milanesa de pollo con arroz y frijoles,fijo,ING15,0.030
+REC09,Milanesa de pollo con arroz y frijoles,fijo,ING07,0.030
+REC10,Huevos al gusto,fijo,ING14,0.110
+REC10,Huevos al gusto,fijo,ING04,0.060
+REC10,Huevos al gusto,fijo,ING07,0.040
+REC10,Huevos al gusto,fijo,ING08,0.010
+REC10,Huevos al gusto,fijo,ING17,0.005
+REC11,Bistec a la mexicana,fijo,ING05,0.150
+REC11,Bistec a la mexicana,fijo,ING04,0.090
+REC11,Bistec a la mexicana,fijo,ING07,0.080
+REC11,Bistec a la mexicana,fijo,ING08,0.030
+REC11,Bistec a la mexicana,fijo,ING17,0.010
+REC12,Filete de pescado a la plancha,fijo,ING13,0.180
+REC12,Filete de pescado a la plancha,fijo,ING15,0.040
+REC12,Filete de pescado a la plancha,fijo,ING07,0.030
+REC12,Filete de pescado a la plancha,fijo,ING18,0.020
+REC06,Calabacitas con queso,secundaria,ING10,0.150
+REC06,Calabacitas con queso,secundaria,ING06,0.040
+REC06,Calabacitas con queso,secundaria,ING07,0.050
+REC06,Calabacitas con queso,secundaria,ING08,0.020
+REC07,Crema de champiñones,secundaria,ING02,0.080
+REC07,Crema de champiñones,secundaria,ING01,0.050
+REC13,Sopa de tortilla,secundaria,ING07,0.080
+REC13,Sopa de tortilla,secundaria,ING04,0.060
+REC13,Sopa de tortilla,secundaria,ING16,0.030
+REC13,Sopa de tortilla,secundaria,ING01,0.020
+REC13,Sopa de tortilla,secundaria,ING06,0.020
+REC14,Tostadas de tinga de pollo,secundaria,ING03,0.080
+REC14,Tostadas de tinga de pollo,secundaria,ING07,0.060
+REC14,Tostadas de tinga de pollo,secundaria,ING04,0.060
+REC14,Tostadas de tinga de pollo,secundaria,ING08,0.040
+REC14,Tostadas de tinga de pollo,secundaria,ING15,0.030
+REC14,Tostadas de tinga de pollo,secundaria,ING01,0.020
+REC15,Chuleta de cerdo en salsa verde,fijo,ING19,0.180
+REC15,Chuleta de cerdo en salsa verde,fijo,ING22,0.080
+REC15,Chuleta de cerdo en salsa verde,fijo,ING08,0.020
+REC15,Chuleta de cerdo en salsa verde,fijo,ING17,0.010
+REC15,Chuleta de cerdo en salsa verde,fijo,ING23,0.005
+REC16,Caldo de pollo con verduras,fijo,ING20,0.200
+REC16,Caldo de pollo con verduras,fijo,ING25,0.060
+REC16,Caldo de pollo con verduras,fijo,ING24,0.050
+REC16,Caldo de pollo con verduras,fijo,ING27,0.050
+REC16,Caldo de pollo con verduras,fijo,ING10,0.040
+REC16,Caldo de pollo con verduras,fijo,ING26,0.030
+REC16,Caldo de pollo con verduras,fijo,ING18,0.010
+REC16,Caldo de pollo con verduras,fijo,ING23,0.005
+REC17,Molletes con pico de gallo,fijo,ING34,0.140
+REC17,Molletes con pico de gallo,fijo,ING35,0.050
+REC17,Molletes con pico de gallo,fijo,ING07,0.030
+REC17,Molletes con pico de gallo,fijo,ING08,0.010
+REC17,Molletes con pico de gallo,fijo,ING23,0.003
+REC17,Molletes con pico de gallo,fijo,ING17,0.003
+REC18,Torta de jamón,fijo,ING34,0.070
+REC18,Torta de jamón,fijo,ING39,0.060
+REC18,Torta de jamón,fijo,ING35,0.030
+REC18,Torta de jamón,fijo,ING16,0.030
+REC18,Torta de jamón,fijo,ING07,0.020
+REC18,Torta de jamón,fijo,ING15,0.015
+REC19,Huevos con chorizo,fijo,ING14,0.110
+REC19,Huevos con chorizo,fijo,ING40,0.050
+REC19,Huevos con chorizo,fijo,ING04,0.060
+REC20,Nopales a la mexicana con queso,fijo,ING21,0.200
+REC20,Nopales a la mexicana con queso,fijo,ING07,0.060
+REC20,Nopales a la mexicana con queso,fijo,ING06,0.030
+REC20,Nopales a la mexicana con queso,fijo,ING08,0.020
+REC20,Nopales a la mexicana con queso,fijo,ING17,0.005
+REC21,Coctel de fruta con yogur,fijo,ING30,0.070
+REC21,Coctel de fruta con yogur,fijo,ING31,0.070
+REC21,Coctel de fruta con yogur,fijo,ING32,0.070
+REC21,Coctel de fruta con yogur,fijo,ING36,0.060
+REC21,Coctel de fruta con yogur,fijo,ING33,0.050
+REC22,Pollo con brócoli y verduras,fijo,ING03,0.150
+REC22,Pollo con brócoli y verduras,fijo,ING28,0.080
+REC22,Pollo con brócoli y verduras,fijo,ING24,0.040
+REC22,Pollo con brócoli y verduras,fijo,ING29,0.040
+REC22,Pollo con brócoli y verduras,fijo,ING08,0.020
+REC23,Hotcakes con mantequilla,fijo,ING37,0.080
+REC23,Hotcakes con mantequilla,fijo,ING14,0.030
+REC23,Hotcakes con mantequilla,fijo,ING38,0.020
+REC24,Licuado de plátano,fijo,ING37,0.250
+REC24,Licuado de plátano,fijo,ING33,0.120
+REC25,Sopa de verduras,secundaria,ING12,0.040
+REC25,Sopa de verduras,secundaria,ING24,0.040
+REC25,Sopa de verduras,secundaria,ING25,0.040
+REC25,Sopa de verduras,secundaria,ING10,0.040
+REC25,Sopa de verduras,secundaria,ING26,0.030
+REC25,Sopa de verduras,secundaria,ING27,0.030
+REC25,Sopa de verduras,secundaria,ING07,0.030
+REC26,Rajas con crema y elote,secundaria,ING09,0.100
+REC26,Rajas con crema y elote,secundaria,ING27,0.060
+REC26,Rajas con crema y elote,secundaria,ING01,0.040
+REC26,Rajas con crema y elote,secundaria,ING06,0.030
+REC26,Rajas con crema y elote,secundaria,ING08,0.015
