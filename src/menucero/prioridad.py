@@ -10,6 +10,8 @@ def dias_para_caducar(ingrediente: Ingrediente, hoy: date) -> int:
 
 
 def prioridad(dias: int) -> float:
+    if dias < 0:
+        return 0.0
     return 1.0 / (dias + 1)
 
 

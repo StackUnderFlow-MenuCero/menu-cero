@@ -63,7 +63,12 @@ tabla = pd.DataFrame(filas)
 
 
 def _resaltar(fila: pd.Series) -> list[str]:
-    estilo = "background-color: #ffe3dc" if fila["Días"] <= 1 else ""
+    if fila["Días"] < 0:
+        estilo = "background-color: #5c1a1a; color: #ffd6d6; font-weight: 600"
+    elif fila["Días"] <= 1:
+        estilo = "background-color: #4a231d; color: #ffece8"
+    else:
+        estilo = ""
     return [estilo] * len(fila)
 
 
