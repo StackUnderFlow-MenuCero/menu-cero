@@ -1,4 +1,4 @@
-"""Pruebas de construcción e invariantes de los modelos (issue #11)."""
+"""Pruebas de construcción, validación e invariantes de los modelos (issue #11)."""
 
 import ast
 from dataclasses import FrozenInstanceError
@@ -28,10 +28,16 @@ def test_construccion_ingrediente():
 def test_ingrediente_es_inmutable():
     ing = Ingrediente("ING01", "Crema ácida", 2.0, date(2026, 11, 17), 70.0)
     with pytest.raises(FrozenInstanceError):
-        ing.cantidad_kg = 1.0  # type: ignore[misc]
+        ing.cantidad_kg = 5.0  # type: ignore[misc]
 
 
-def test_construccion_receta_completa_y_valores_por_omision():
+@pytest.mark.parametrize(("kg", "costo"), [(-1.0, 70.0), (2.0, -1.0)])
+def test_ingrediente_rechaza_negativos(kg: float, costo: float):
+    with pytest.raises(ValueError):
+        Ingrediente("ING01", "Crema ácida", kg, date(2026, 11, 17), costo)
+
+
+def test_construccion_receta_e_inmutabilidad():
     receta = Receta(
         id="REC01",
         platillo="Pollo a la crema con champiñones",
@@ -47,37 +53,50 @@ def test_construccion_receta_completa_y_valores_por_omision():
     assert receta.demanda_fija == 3
     assert receta.demanda_menu_dia == 12
 
-    secundaria_a = Receta("REC07", "Crema de champiñones", "secundaria")
-    secundaria_b = Receta("REC06", "Calabacitas con queso", "secundaria")
-    secundaria_a.ingredientes["ING01"] = 0.05
-    assert secundaria_b.ingredientes == {}
-    assert secundaria_b.demanda_fija == 0
-    assert secundaria_b.demanda_menu_dia == 0
+    with pytest.raises(FrozenInstanceError):
+        receta.tipo = "secundaria"  # type: ignore[misc]
+
+    secundaria = Receta("REC07", "Crema de champiñones", "secundaria", {"ING01": 0.05})
+    assert secundaria.demanda_fija == 0
+    assert secundaria.demanda_menu_dia == 0
 
 
-def test_construccion_menu_generado():
-    menu = MenuGenerado(
-        variante="base",
-        porciones={"REC01": 12, "REC07": 10},
-        orden_uso=[{"ingrediente": "ING01", "vence_en": 0}],
-        metricas={"kg_rescatados": 10.3, "aprovechamiento_pct": 75.6},
-        tiempo_ms=0.85,
-    )
+def test_receta_rechaza_tipo_invalido():
+    with pytest.raises(ValueError, match="fijo o secundaria"):
+        Receta("R1", "X", "especial", {"ING01": 0.1})
+
+
+@pytest.mark.parametrize("kg", [0.0, -0.05])
+def test_receta_rechaza_kg_por_porcion_no_positivo(kg: float):
+    with pytest.raises(ValueError, match="mayor que 0"):
+        Receta("R1", "X", "fijo", {"ING01": kg})
+
+
+@pytest.mark.parametrize(("fija", "menu"), [(-1, 5), (3, -2)])
+def test_receta_rechaza_demandas_negativas(fija: int, menu: int):
+    with pytest.raises(ValueError, match="demanda no puede ser negativa"):
+        Receta("R1", "X", "fijo", {"ING01": 0.1}, demanda_fija=fija, demanda_menu_dia=menu)
+
+
+def test_menu_generado_contrato_y_total_porciones():
+    # Construcción posicional usada por voraz.py (#20/#23) y fuerza_bruta.py (#24)
+    menu = MenuGenerado("base", {"REC01": 12, "REC03": 10}, 1.51667, 0.85)
     assert menu.variante == "base"
-    assert menu.porciones == {"REC01": 12, "REC07": 10}
-    assert menu.orden_uso == [{"ingrediente": "ING01", "vence_en": 0}]
-    assert menu.metricas == {"kg_rescatados": 10.3, "aprovechamiento_pct": 75.6}
-    assert menu.tiempo_ms == 0.85
+    assert menu.porciones == {"REC01": 12, "REC03": 10}
+    assert menu.valor == pytest.approx(1.51667)
+    assert menu.tiempo_ms == pytest.approx(0.85)
+    assert menu.total_porciones == 22
+    assert menu.orden_uso == []
+    assert menu.metricas == {}
 
-    menu_manual_a = MenuGenerado("manual")
-    menu_manual_b = MenuGenerado("manual")
-    menu_manual_a.porciones["REC01"] = 4
-    menu_manual_a.orden_uso.append("ING01")
-    menu_manual_a.metricas["kg_rescatados"] = 1.0
-    assert menu_manual_b.porciones == {}
-    assert menu_manual_b.orden_uso == []
-    assert menu_manual_b.metricas == {}
-    assert menu_manual_b.tiempo_ms == 0.0
+    # Aislamiento de default_factory en orden_uso y metricas
+    menu_a = MenuGenerado("manual", {"REC01": 4})
+    menu_b = MenuGenerado("manual", {})
+    menu_a.orden_uso.append("ING01")
+    menu_a.metricas["kg_rescatados"] = 1.0
+    assert menu_b.orden_uso == []
+    assert menu_b.metricas == {}
+    assert menu_b.total_porciones == 0
 
 
 def test_modelos_no_dependen_de_pandas_ni_streamlit():

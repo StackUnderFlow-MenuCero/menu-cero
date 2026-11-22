@@ -132,24 +132,31 @@ def test_riesgo_total_coincide_con_datos_ejemplo():
             for row in csv.DictReader(f)
         }
 
-    recetas: dict[str, Receta] = {}
+    datos_recetas: dict[str, dict[str, object]] = {}
     with open(EJEMPLO / "recetas.csv", encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
-            rec = recetas.setdefault(
+            entry = datos_recetas.setdefault(
                 row["receta_id"],
-                Receta(
-                    id=row["receta_id"],
-                    platillo=row["platillo"],
-                    tipo=row["tipo"],  # type: ignore[arg-type]
-                ),
+                {"platillo": row["platillo"], "tipo": row["tipo"], "ingredientes": {}},
             )
-            rec.ingredientes[row["ingrediente_id"]] = float(row["kg_por_porcion"])
+            entry["ingredientes"][row["ingrediente_id"]] = float(row["kg_por_porcion"])  # type: ignore[index]
 
+    demandas: dict[str, tuple[int, int]] = {}
     with open(EJEMPLO / "demanda.csv", encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
-            rec = recetas[row["receta_id"]]
-            rec.demanda_fija = int(row["demanda_fija"])
-            rec.demanda_menu_dia = int(row["demanda_menu_dia"])
+            demandas[row["receta_id"]] = (int(row["demanda_fija"]), int(row["demanda_menu_dia"]))
+
+    recetas = {
+        rec_id: Receta(
+            id=rec_id,
+            platillo=str(entry["platillo"]),
+            tipo=str(entry["tipo"]),
+            ingredientes=entry["ingredientes"],  # type: ignore[arg-type]
+            demanda_fija=demandas[rec_id][0],
+            demanda_menu_dia=demandas[rec_id][1],
+        )
+        for rec_id, entry in datos_recetas.items()
+    }
 
     vigentes, merma = ordenar_por_prioridad(ingredientes, hoy, recetas=recetas)
     assert merma == []
