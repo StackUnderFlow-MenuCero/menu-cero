@@ -1,4 +1,4 @@
-"""Pruebas de días para caducar, prioridad, merma y ordenamiento (issue #12)."""
+"""Pruebas de días para caducar, prioridad, reserva y kg en riesgo (issue #12)."""
 
 import ast
 import csv
@@ -9,12 +9,12 @@ import pytest
 
 from menucero.modelos import Ingrediente, Receta
 from menucero.prioridad import (
-    calcular_reserva_fija,
     dias_para_caducar,
-    kg_disponible_hoy,
     kg_en_riesgo,
     ordenar_por_prioridad,
     prioridad,
+    reserva_diaria,
+    separar_caducados,
 )
 
 EJEMPLO = Path(__file__).resolve().parents[1] / "data" / "ejemplo"
@@ -36,21 +36,15 @@ def _ing(
     )
 
 
-@pytest.mark.parametrize(
-    ("dias", "esperada"),
-    [
-        (0, 1.0),
-        (1, 0.5),
-        (7, 0.125),
-    ],
-)
-def test_prioridad_valores_del_documento(dias: int, esperada: float):
-    assert prioridad(dias) == pytest.approx(esperada)
+@pytest.mark.parametrize(("dias", "esperado"), [(0, 1.0), (1, 0.5), (7, 0.125)])
+def test_prioridad_valores_del_documento(dias: int, esperado: float):
+    assert prioridad(dias) == pytest.approx(esperado)
 
 
-def test_prioridad_caducado_es_cero():
-    assert prioridad(-1) == 0.0
-    assert prioridad(-5) == 0.0
+@pytest.mark.parametrize("dias", [-1, -5])
+def test_prioridad_rechaza_caducados(dias: int):
+    with pytest.raises(ValueError, match="caducado"):
+        prioridad(dias)
 
 
 def test_dias_para_caducar_usa_fecha_explicita():
@@ -61,68 +55,81 @@ def test_dias_para_caducar_usa_fecha_explicita():
     assert dias_para_caducar(ing, date(2026, 11, 22)) == -2
 
 
-def test_excluye_caducados_y_reporta_merma_perdida():
+def test_separar_caducados_conserva_orden_y_excluye_del_ordenamiento():
     hoy = date(2026, 11, 18)
-    ingredientes = [
-        _ing("ING01", date(2026, 11, 17), cantidad_kg=2.0, costo_kg=70.0, nombre="Crema ácida"),
-        _ing("ING02", date(2026, 11, 18), cantidad_kg=1.5, costo_kg=95.0, nombre="Champiñones"),
-        _ing("ING03", date(2026, 11, 25), cantidad_kg=3.0, costo_kg=40.0, nombre="Cebolla"),
+    lista = [
+        _ing("ING_V1", date(2026, 11, 20)),
+        _ing("ING_CAD1", date(2026, 11, 17)),
+        _ing("ING_V2", date(2026, 11, 18)),
+        _ing("ING_CAD2", date(2026, 11, 15)),
     ]
 
-    vigentes, merma = ordenar_por_prioridad(ingredientes, hoy)
+    vigentes, caducados = separar_caducados(lista, hoy)
+    assert [i.id for i in vigentes] == ["ING_V1", "ING_V2"]
+    assert [i.id for i in caducados] == ["ING_CAD1", "ING_CAD2"]
 
-    assert [v.ingrediente.id for v in vigentes] == ["ING02", "ING03"]
-    assert len(merma) == 1
-    assert merma[0].ingrediente.id == "ING01"
-    assert merma[0].dias == -1
-    assert merma[0].cantidad_kg == 2.0
-    assert merma[0].costo_perdido == pytest.approx(140.0)
+    ordenados = ordenar_por_prioridad(lista, hoy)
+    assert [i.id for i in ordenados] == ["ING_V2", "ING_V1"]
 
 
-def test_desempate_determinista_prioridad_valor_y_id():
-    hoy = date(2026, 11, 17)
-    ingredientes = {
-        # Prioridad 0.5, valor en riesgo 100.0
-        "ING_B": _ing("ING_B", date(2026, 11, 18), cantidad_kg=2.0, costo_kg=50.0),
-        # Prioridad 0.5, valor en riesgo 100.0 (empate en prioridad y valor -> gana ING_A)
-        "ING_A": _ing("ING_A", date(2026, 11, 18), cantidad_kg=1.0, costo_kg=100.0),
-        # Prioridad 0.5, valor en riesgo 200.0 (gana por valor en riesgo)
-        "ING_C": _ing("ING_C", date(2026, 11, 18), cantidad_kg=2.0, costo_kg=100.0),
-        # Prioridad 1.0, valor en riesgo 10.0 (gana por prioridad)
-        "ING_D": _ing("ING_D", date(2026, 11, 17), cantidad_kg=1.0, costo_kg=10.0),
+def test_reserva_diaria_del_ejemplo_e_ignora_secundarias(recetas):
+    esperada = {
+        "ING01": 0.42,
+        "ING02": 0.09,
+        "ING03": 1.05,
+        "ING04": 2.73,
+        "ING05": 3.00,
     }
+    assert reserva_diaria(recetas) == pytest.approx(esperada)
 
-    vigentes, merma = ordenar_por_prioridad(ingredientes, hoy)
+    # Una receta secundaria no debe sumar a la reserva aunque tenga demanda_fija > 0
+    secundaria_con_fija = Receta(
+        "REC99",
+        "Sopa extra",
+        "secundaria",
+        {"ING01": 0.50},
+        demanda_fija=10,
+        demanda_menu_dia=5,
+    )
+    assert reserva_diaria([*recetas, secundaria_con_fija]) == pytest.approx(esperada)
 
-    assert merma == []
-    assert [v.ingrediente.id for v in vigentes] == ["ING_D", "ING_C", "ING_A", "ING_B"]
+
+def test_kg_en_riesgo_del_ejemplo_y_caducado_en_cero(ingredientes, recetas, hoy):
+    r = kg_en_riesgo(ingredientes, recetas, hoy)
+    assert r == pytest.approx(
+        {"ING01": 1.16, "ING02": 1.23, "ING03": 2.75, "ING04": 0.0, "ING05": 0.0}
+    )
+
+    caducado = _ing("ING_CAD", date(2026, 11, 15), cantidad_kg=3.0, costo_kg=80.0)
+    r_con_caducado = kg_en_riesgo([*ingredientes, caducado], recetas, hoy)
+    assert r_con_caducado["ING_CAD"] == 0.0
 
 
-def test_reserva_fija_ignora_secundarias_y_calcula_riesgo():
+def test_orden_cambia_con_riesgo(ingredientes, recetas, hoy):
+    orden_sin_riesgo = [i.id for i in ordenar_por_prioridad(ingredientes, hoy)]
+    assert orden_sin_riesgo == ["ING01", "ING05", "ING02", "ING04", "ING03"]
+
+    riesgo = kg_en_riesgo(ingredientes, recetas, hoy)
+    orden_con_riesgo = [i.id for i in ordenar_por_prioridad(ingredientes, hoy, riesgo)]
+    assert orden_con_riesgo == ["ING01", "ING02", "ING05", "ING04", "ING03"]
+
+
+def test_desempate_determinista_por_id():
     hoy = date(2026, 11, 17)
-    ing = _ing("ING01", date(2026, 11, 17), cantidad_kg=2.0, costo_kg=70.0)
-    recetas = [
-        Receta("REC01", "Pollo a la crema", "fijo", {"ING01": 0.04}, demanda_fija=3),
-        Receta("REC03", "Enchiladas suizas", "fijo", {"ING01": 0.05}, demanda_fija=6),
-        # Secundaria no debe contar en la reserva aunque tenga demanda_fija > 0
-        Receta("REC07", "Crema", "secundaria", {"ING01": 0.05}, demanda_fija=10),
+    lista = [
+        _ing("ING_B", date(2026, 11, 18), cantidad_kg=2.0, costo_kg=50.0),
+        _ing("ING_A", date(2026, 11, 18), cantidad_kg=1.0, costo_kg=100.0),
+        _ing("ING_C", date(2026, 11, 18), cantidad_kg=2.0, costo_kg=100.0),
     ]
-
-    reserva = calcular_reserva_fija(recetas)
-    assert reserva["ING01"] == pytest.approx(0.42)
-    assert kg_disponible_hoy(ing, reserva["ING01"]) == pytest.approx(1.58)
-    assert kg_en_riesgo(ing, dias=0, reserva_diaria_kg=reserva["ING01"]) == pytest.approx(1.58)
-
-    vigentes, _ = ordenar_por_prioridad([ing], hoy, recetas=recetas)
-    assert vigentes[0].kg_en_riesgo == pytest.approx(1.58)
-    assert vigentes[0].valor_en_riesgo == pytest.approx(110.60)
+    ordenados = ordenar_por_prioridad(lista, hoy)
+    assert [i.id for i in ordenados] == ["ING_C", "ING_A", "ING_B"]
 
 
 def test_riesgo_total_coincide_con_datos_ejemplo():
     hoy = date(2026, 11, 17)
     with open(EJEMPLO / "inventario.csv", encoding="utf-8-sig", newline="") as f:
-        ingredientes = {
-            row["ingrediente_id"]: Ingrediente(
+        inventario = [
+            Ingrediente(
                 id=row["ingrediente_id"],
                 nombre=row["nombre"],
                 cantidad_kg=float(row["cantidad_kg"]),
@@ -130,7 +137,7 @@ def test_riesgo_total_coincide_con_datos_ejemplo():
                 costo_kg=float(row["costo_kg"]),
             )
             for row in csv.DictReader(f)
-        }
+        ]
 
     datos_recetas: dict[str, dict[str, object]] = {}
     with open(EJEMPLO / "recetas.csv", encoding="utf-8-sig", newline="") as f:
@@ -146,8 +153,8 @@ def test_riesgo_total_coincide_con_datos_ejemplo():
         for row in csv.DictReader(f):
             demandas[row["receta_id"]] = (int(row["demanda_fija"]), int(row["demanda_menu_dia"]))
 
-    recetas = {
-        rec_id: Receta(
+    lista_recetas = [
+        Receta(
             id=rec_id,
             platillo=str(entry["platillo"]),
             tipo=str(entry["tipo"]),
@@ -156,12 +163,14 @@ def test_riesgo_total_coincide_con_datos_ejemplo():
             demanda_menu_dia=demandas[rec_id][1],
         )
         for rec_id, entry in datos_recetas.items()
-    }
+    ]
 
-    vigentes, merma = ordenar_por_prioridad(ingredientes, hoy, recetas=recetas)
-    assert merma == []
-    assert sum(v.kg_en_riesgo for v in vigentes) == pytest.approx(13.62)
-    assert sum(v.valor_en_riesgo for v in vigentes) == pytest.approx(1048.70)
+    _, caducados = separar_caducados(inventario, hoy)
+    assert caducados == []
+
+    riesgo = kg_en_riesgo(inventario, lista_recetas, hoy)
+    assert sum(riesgo.values()) == pytest.approx(13.62)
+    assert sum(riesgo[i.id] * i.costo_kg for i in inventario) == pytest.approx(1048.70)
 
 
 def test_prioridad_no_usa_pandas_streamlit_ni_fecha_del_sistema():

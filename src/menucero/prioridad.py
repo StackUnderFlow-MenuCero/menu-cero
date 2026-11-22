@@ -1,76 +1,15 @@
 """Días para caducar, prioridad 1/(días + 1), reserva del menú fijo y kg en riesgo.
 
-Implementación del cálculo de urgencias y ordenamiento determinista (issue #12),
+Implementación pura sobre los modelos de ``menucero.modelos`` (issue #12),
 sin dependencias de Pandas, Streamlit ni de la fecha del sistema.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
 from datetime import date
 
 from menucero.modelos import Ingrediente, Receta
-
-
-@dataclass(frozen=True, slots=True)
-class IngredientePriorizado:
-    """Resumen de urgencia de un ingrediente vigente para una fecha ``hoy``.
-
-    Attributes:
-        ingrediente: Ingrediente vigente evaluado.
-        dias: Días restantes para caducar (0 si caduca hoy).
-        prioridad: Prioridad ``1 / (dias + 1)`` en ``(0, 1]``.
-        reserva_diaria_kg: Consumo diario del menú fijo (kg/día).
-        disponible_hoy_kg: Existencia disponible hoy tras reservar el menú fijo (kg).
-        kg_en_riesgo: Cantidad que no se consumirá en el menú fijo antes de caducar (kg).
-        valor_en_riesgo: Valor económico en riesgo ``kg_en_riesgo * costo_kg`` (MXN).
-    """
-
-    ingrediente: Ingrediente
-    dias: int
-    prioridad: float
-    reserva_diaria_kg: float
-    disponible_hoy_kg: float
-    kg_en_riesgo: float
-    valor_en_riesgo: float
-
-
-@dataclass(frozen=True, slots=True)
-class MermaPerdida:
-    """Ingrediente ya caducado en la fecha de referencia (merma ya perdida).
-
-    Attributes:
-        ingrediente: Ingrediente caducado excluido del menú.
-        dias: Días respecto a ``hoy`` (valor negativo, ej. ``-1`` si caducó ayer).
-        cantidad_kg: Cantidad total perdida por caducidad (kg).
-        costo_perdido: Valor económico perdido ``cantidad_kg * costo_kg`` (MXN).
-    """
-
-    ingrediente: Ingrediente
-    dias: int
-    cantidad_kg: float
-    costo_perdido: float
-
-
-def dias_para_caducar(ingrediente: Ingrediente, hoy: date) -> int:
-    """Calcula los días para caducar respecto a la fecha explícita ``hoy``.
-
-    Retorna ``0`` si caduca hoy, positivo si aún está vigente y negativo si ya
-    caducó. Nunca consulta la fecha del sistema.
-    """
-    return (ingrediente.fecha_caducidad - hoy).days
-
-
-def prioridad(dias: int) -> float:
-    """Calcula la prioridad ``1 / (dias + 1)`` para un ingrediente vigente.
-
-    Ejemplos: ``0 -> 1.0`` (hoy), ``1 -> 0.5`` (mañana), ``7 -> 0.125``.
-    Para ``dias < 0`` (caducado) retorna ``0.0``.
-    """
-    if dias < 0:
-        return 0.0
-    return 1.0 / (dias + 1)
 
 
 def _iter_ingredientes(
@@ -82,22 +21,86 @@ def _iter_ingredientes(
 
 
 def _iter_recetas(
-    recetas: Iterable[Receta] | Mapping[str, Receta] | None,
+    recetas: Iterable[Receta] | Mapping[str, Receta],
 ) -> Iterable[Receta]:
-    if recetas is None:
-        return ()
     if isinstance(recetas, Mapping):
         return recetas.values()
     return recetas
 
 
-def calcular_reserva_fija(
-    recetas: Iterable[Receta] | Mapping[str, Receta] | None,
-) -> dict[str, float]:
-    """Calcula la reserva diaria del menú fijo por ingrediente (kg/día).
+def dias_para_caducar(ingrediente: Ingrediente, hoy: date) -> int:
+    """Días desde ``hoy`` hasta la fecha de caducidad del ingrediente.
 
-    Solo suma las recetas con ``tipo == "fijo"``:
-    ``reserva[i] = sum(receta.demanda_fija * kg_por_porcion)``.
+    Retorna ``0`` si vence hoy, positivo si sigue vigente y negativo si ya
+    caducó. Nunca consulta la fecha del sistema.
+    """
+    return (ingrediente.fecha_caducidad - hoy).days
+
+
+def prioridad(dias: int) -> float:
+    """Prioridad ``1 / (días + 1)`` para un ingrediente vigente.
+
+    Ejemplos: hoy (``0``) -> ``1.0``, mañana (``1``) -> ``0.5``,
+    en 7 días (``7``) -> ``0.125``.
+
+    Raises:
+        ValueError: Si ``dias < 0`` (ingrediente ya caducado).
+    """
+    if dias < 0:
+        raise ValueError("un ingrediente caducado no tiene prioridad")
+    return 1.0 / (dias + 1)
+
+
+def separar_caducados(
+    ingredientes: Iterable[Ingrediente] | Mapping[str, Ingrediente],
+    hoy: date,
+) -> tuple[list[Ingrediente], list[Ingrediente]]:
+    """Separa los ingredientes en ``(vigentes, caducados)`` conservando el orden.
+
+    Los ingredientes con ``dias_para_caducar(ing, hoy) < 0`` se clasifican como
+    caducados (merma ya perdida) y quedan excluidos de ``vigentes``.
+    """
+    vigentes: list[Ingrediente] = []
+    caducados: list[Ingrediente] = []
+    for ing in _iter_ingredientes(ingredientes):
+        if dias_para_caducar(ing, hoy) < 0:
+            caducados.append(ing)
+        else:
+            vigentes.append(ing)
+    return vigentes, caducados
+
+
+def ordenar_por_prioridad(
+    ingredientes: Iterable[Ingrediente] | Mapping[str, Ingrediente],
+    hoy: date,
+    riesgo: dict[str, float] | None = None,
+) -> list[Ingrediente]:
+    """Devuelve los ingredientes vigentes ordenados de mayor a menor prioridad.
+
+    Excluye los ingredientes ya caducados. El desempate es determinista:
+    1. ``prioridad`` descendente.
+    2. Valor en riesgo descendente (``riesgo[id] * costo_kg`` en MXN si se
+       proporciona ``riesgo``; en caso contrario, valor del inventario
+       ``cantidad_kg * costo_kg``).
+    3. ``id`` ascendente.
+    """
+    vigentes, _ = separar_caducados(ingredientes, hoy)
+
+    def _clave(ing: Ingrediente) -> tuple[float, float, str]:
+        p = prioridad(dias_para_caducar(ing, hoy))
+        kg = riesgo.get(ing.id, 0.0) if riesgo is not None else ing.cantidad_kg
+        return (-p, -(kg * ing.costo_kg), ing.id)
+
+    return sorted(vigentes, key=_clave)
+
+
+def reserva_diaria(
+    recetas: Iterable[Receta] | Mapping[str, Receta],
+) -> dict[str, float]:
+    """Kg por día que consume el menú fijo por ingrediente (kg/día).
+
+    Calcula ``sum(demanda_fija * kg_por_porcion)`` considerando únicamente las
+    recetas con ``tipo == "fijo"``.
     """
     reserva: dict[str, float] = {}
     for receta in _iter_recetas(recetas):
@@ -108,82 +111,22 @@ def calcular_reserva_fija(
     return reserva
 
 
-def kg_disponible_hoy(ingrediente: Ingrediente, reserva_diaria_kg: float = 0.0) -> float:
-    """Calcula la existencia disponible hoy tras la reserva del menú fijo (kg)."""
-    return max(0.0, ingrediente.cantidad_kg - reserva_diaria_kg)
-
-
 def kg_en_riesgo(
-    ingrediente: Ingrediente,
-    dias: int,
-    reserva_diaria_kg: float = 0.0,
-) -> float:
-    """Calcula los kg en riesgo de caducar antes de consumirse en el menú fijo (kg).
-
-    Fórmula: ``max(0.0, cantidad_kg - reserva_diaria_kg * (dias + 1))`` para
-    ingredientes vigentes (``dias >= 0``); ``0.0`` si ya caducó.
-    """
-    if dias < 0:
-        return 0.0
-    return max(0.0, ingrediente.cantidad_kg - reserva_diaria_kg * (dias + 1))
-
-
-def ordenar_por_prioridad(
     ingredientes: Iterable[Ingrediente] | Mapping[str, Ingrediente],
+    recetas: Iterable[Receta] | Mapping[str, Receta],
     hoy: date,
-    recetas: Iterable[Receta] | Mapping[str, Receta] | None = None,
-) -> tuple[list[IngredientePriorizado], list[MermaPerdida]]:
-    """Separa los ingredientes vigentes de los caducados y ordena por urgencia.
+) -> dict[str, float]:
+    """Calcula ``max(0.0, cantidad_kg - reserva * (d + 1))`` por ingrediente (kg).
 
-    Los ingredientes ya caducados (``dias < 0``) se excluyen de la lista activa
-    y se devuelven en el segundo elemento como merma ya perdida.
-
-    El orden de los vigentes es determinista:
-    1. ``prioridad`` descendente (menor ``dias`` primero).
-    2. ``valor_en_riesgo`` descendente (``kg_en_riesgo * costo_kg`` en MXN).
-    3. ``ingrediente.id`` ascendente.
-
-    Args:
-        ingredientes: Colección o mapeo de ingredientes del inventario.
-        hoy: Fecha de referencia explícita.
-        recetas: Colección o mapeo opcional de recetas para descontar la reserva
-            del menú fijo al calcular los kg en riesgo. Si es ``None``, la reserva
-            diaria se asume ``0.0``.
-
-    Returns:
-        Tupla ``(vigentes_ordenados, merma_perdida)``.
+    Para ingredientes ya caducados (``d < 0``) devuelve ``0.0``, pues ya se
+    cuentan como merma perdida.
     """
-    reserva_por_id = calcular_reserva_fija(recetas)
-    vigentes: list[IngredientePriorizado] = []
-    caducados: list[MermaPerdida] = []
-
+    reserva = reserva_diaria(recetas)
+    resultado: dict[str, float] = {}
     for ing in _iter_ingredientes(ingredientes):
-        dias = dias_para_caducar(ing, hoy)
-        if dias < 0:
-            caducados.append(
-                MermaPerdida(
-                    ingrediente=ing,
-                    dias=dias,
-                    cantidad_kg=ing.cantidad_kg,
-                    costo_perdido=ing.cantidad_kg * ing.costo_kg,
-                )
-            )
-            continue
-
-        reserva = reserva_por_id.get(ing.id, 0.0)
-        riesgo = kg_en_riesgo(ing, dias, reserva)
-        vigentes.append(
-            IngredientePriorizado(
-                ingrediente=ing,
-                dias=dias,
-                prioridad=prioridad(dias),
-                reserva_diaria_kg=reserva,
-                disponible_hoy_kg=kg_disponible_hoy(ing, reserva),
-                kg_en_riesgo=riesgo,
-                valor_en_riesgo=riesgo * ing.costo_kg,
-            )
-        )
-
-    vigentes.sort(key=lambda item: (-item.prioridad, -item.valor_en_riesgo, item.ingrediente.id))
-    caducados.sort(key=lambda item: (item.dias, -item.costo_perdido, item.ingrediente.id))
-    return vigentes, caducados
+        d = dias_para_caducar(ing, hoy)
+        if d < 0:
+            resultado[ing.id] = 0.0
+        else:
+            resultado[ing.id] = max(0.0, ing.cantidad_kg - reserva.get(ing.id, 0.0) * (d + 1))
+    return resultado
