@@ -9,6 +9,9 @@ día) con demanda Poisson y escribe en ``resultados/``:
   máximo por escenario y horizonte.
 - ``merma_a_vs_b.png``: merma promedio de A y B por escenario.
 - ``desperdicio_evitado.png``: distribución del % de desperdicio evitado.
+- ``sensibilidad_venta.csv``: prueba del supuesto de venta (#31). Con 3 días,
+  el menú del día se prepara completo, se vende el 100, 75 o 50 % de su demanda
+  estimada y lo que sobra se tira como merma.
 
 Uso, desde la raíz del repositorio::
 
@@ -39,32 +42,50 @@ NOMBRES = {
     "alta_caducidad": "Alta caducidad",
 }
 HORIZONTES = (3, 7)
+VENTAS = (1.0, 0.75, 0.5)
+DIAS_SENSIBILIDAD = 3
 COLUMNAS = [
     "escenario",
     "dias",
     "semilla",
     "voraz",
+    "inventario_kg",
+    "urgentes_kg",
     "merma_a_kg",
     "merma_b_kg",
     "merma_a_costo",
     "merma_b_costo",
+    "merma_urgentes_a_kg",
+    "merma_urgentes_b_kg",
+    "perdida_urgentes_a_pct",
+    "perdida_urgentes_b_pct",
+    "perdida_inventario_a_pct",
+    "perdida_inventario_b_pct",
     "desperdicio_evitado_pct",
     "costo_ahorrado",
     "no_atendidas_a",
     "no_atendidas_b",
     "porciones_menu_dia_b",
+    "sobrantes_menu_dia_b",
 ]
 METRICAS = [
     "merma_a_kg",
     "merma_b_kg",
+    "perdida_urgentes_a_pct",
+    "perdida_urgentes_b_pct",
+    "perdida_inventario_a_pct",
+    "perdida_inventario_b_pct",
     "desperdicio_evitado_pct",
     "costo_ahorrado",
     "no_atendidas_a",
     "no_atendidas_b",
+    "sobrantes_menu_dia_b",
 ]
 
 # Colores de la paleta categórica de referencia (A = 1, B = 2) y tinta de texto.
 COLOR_A, COLOR_B = "#2a78d6", "#eb6834"
+COLORES_ESCENARIO = dict(zip(ESCENARIOS, ("#2a78d6", "#eb6834", "#1baf7a", "#eda100"), strict=True))
+MARCAS_ESCENARIO = dict(zip(ESCENARIOS, ("o", "s", "D", "^"), strict=True))
 FONDO, TINTA, TINTA_2, REJILLA = "#fcfcfb", "#0b0b0b", "#52514e", "#e4e3df"
 
 
@@ -159,33 +180,66 @@ def nombre_voraz() -> str:
 
 
 def correr(
-    datos: Path, escenarios: Sequence[str], horizontes: Sequence[int], semillas: Sequence[int]
+    datos: Path,
+    escenarios: Sequence[str],
+    horizontes: Sequence[int],
+    semillas: Sequence[int],
+    venta: float = 1.0,
+    sobrante_es_merma: bool = False,
 ) -> list[dict]:
-    """Una fila por escenario, horizonte y semilla con A y B."""
+    """Una fila por escenario, horizonte y semilla con A y B.
+
+    Los ingredientes *urgentes* son los que vencen hoy o mañana (0 o 1 días): los
+    «8 que vencen en menos de 48 horas» de la demostración.
+    """
     generador = voraz_por_omision()
     voraz = nombre_voraz()
     filas = []
     for escenario in escenarios:
         ingredientes, recetas = leer_escenario(datos / escenario, HOY_DEMO)
         costos = {ing.id: ing.costo_kg for ing in ingredientes}
+        inventario_kg = sum(ing.cantidad_kg for ing in ingredientes)
+        urgentes = {
+            ing.id: ing.cantidad_kg
+            for ing in ingredientes
+            if 0 <= (ing.fecha_caducidad - HOY_DEMO).days <= 1
+        }
+        urgentes_kg = sum(urgentes.values())
         for dias in horizontes:
             for semilla in semillas:
                 comun = {"dias": dias, "semilla": semilla, "ruido": True}
                 a = simular(ingredientes, recetas, HOY_DEMO, escenario="A", **comun)
                 b = simular(
-                    ingredientes, recetas, HOY_DEMO, escenario="B", generador=generador, **comun
+                    ingredientes,
+                    recetas,
+                    HOY_DEMO,
+                    escenario="B",
+                    generador=generador,
+                    venta=venta,
+                    sobrante_es_merma=sobrante_es_merma,
+                    **comun,
                 )
                 evitado = desperdicio_evitado(a.merma_kg, b.merma_kg)
+                urg_a = sum(a.merma_kg[i] for i in urgentes)
+                urg_b = sum(b.merma_kg[i] for i in urgentes)
                 filas.append(
                     {
                         "escenario": escenario,
                         "dias": dias,
                         "semilla": semilla,
                         "voraz": voraz,
+                        "inventario_kg": round(inventario_kg, 4),
+                        "urgentes_kg": round(urgentes_kg, 4),
                         "merma_a_kg": round(a.merma_total_kg, 4),
                         "merma_b_kg": round(b.merma_total_kg, 4),
                         "merma_a_costo": round(a.merma_costo, 2),
                         "merma_b_costo": round(b.merma_costo, 2),
+                        "merma_urgentes_a_kg": round(urg_a, 4),
+                        "merma_urgentes_b_kg": round(urg_b, 4),
+                        "perdida_urgentes_a_pct": _pct(urg_a, urgentes_kg),
+                        "perdida_urgentes_b_pct": _pct(urg_b, urgentes_kg),
+                        "perdida_inventario_a_pct": _pct(a.merma_total_kg, inventario_kg),
+                        "perdida_inventario_b_pct": _pct(b.merma_total_kg, inventario_kg),
                         "desperdicio_evitado_pct": "" if evitado is None else round(evitado, 2),
                         "costo_ahorrado": round(costo_ahorrado(a.merma_kg, b.merma_kg, costos), 2),
                         "no_atendidas_a": a.porciones_no_atendidas,
@@ -193,19 +247,37 @@ def correr(
                         "porciones_menu_dia_b": sum(
                             sum(r["porciones_menu_dia"].values()) for r in b.consumo_diario
                         ),
+                        "sobrantes_menu_dia_b": sum(
+                            sum(r["sobrantes_menu_dia"].values()) for r in b.consumo_diario
+                        ),
                     }
                 )
     return filas
 
 
-def resumir(filas: list[dict]) -> list[dict]:
+def _pct(parte: float, total: float) -> float | str:
+    return round(100 * parte / total, 2) if total > 0 else ""
+
+
+def sensibilidad(datos: Path, semillas: Sequence[int]) -> list[dict]:
+    """El menú del día se prepara completo y se vende el 100, 75 o 50 % de lo estimado."""
+    filas = []
+    for venta in VENTAS:
+        for fila in correr(
+            datos, ESCENARIOS, [DIAS_SENSIBILIDAD], semillas, venta=venta, sobrante_es_merma=True
+        ):
+            filas.append({"venta": venta, **fila})
+    return filas
+
+
+def resumir(filas: list[dict], llaves: Sequence[str] = ("escenario", "dias")) -> list[dict]:
     """Promedio, desviación estándar, mínimo y máximo por escenario y horizonte."""
-    grupos: dict[tuple[str, int], list[dict]] = {}
+    grupos: dict[tuple, list[dict]] = {}
     for f in filas:
-        grupos.setdefault((f["escenario"], f["dias"]), []).append(f)
+        grupos.setdefault(tuple(f[k] for k in llaves), []).append(f)
     resumen = []
-    for (escenario, dias), grupo in grupos.items():
-        fila = {"escenario": escenario, "dias": dias, "corridas": len(grupo)}
+    for clave, grupo in grupos.items():
+        fila = {**dict(zip(llaves, clave, strict=True)), "corridas": len(grupo)}
         for m in METRICAS:
             valores = [float(f[m]) for f in grupo if f[m] != ""]
             fila[f"{m}_prom"] = round(statistics.fmean(valores), 2)
@@ -240,6 +312,49 @@ def tabla_markdown(resumen: list[dict], voraz: str, semillas: int) -> str:
             f"| {r['costo_ahorrado_prom']:,.2f} ± {r['costo_ahorrado_de']:,.2f} "
             f"| {r['no_atendidas_a_prom']:.1f} | {r['no_atendidas_b_prom']:.1f} |"
         )
+
+    lineas += [
+        "",
+        "## Pérdida de los ingredientes urgentes y del inventario",
+        "",
+        "Urgentes: los que vencen hoy o mañana al empezar. Porcentaje de sus kg "
+        "iniciales que terminan como merma.",
+        "",
+        "| Escenario | Días | Urgentes A (%) | Urgentes B (%) | Inventario A (%) "
+        "| Inventario B (%) |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for r in sorted(resumen, key=lambda r: (r["dias"], ESCENARIOS.index(r["escenario"]))):
+        lineas.append(
+            f"| {NOMBRES[r['escenario']]} | {r['dias']} "
+            f"| {r['perdida_urgentes_a_pct_prom']:.1f} ± {r['perdida_urgentes_a_pct_de']:.1f} "
+            f"| {r['perdida_urgentes_b_pct_prom']:.1f} ± {r['perdida_urgentes_b_pct_de']:.1f} "
+            f"| {r['perdida_inventario_a_pct_prom']:.1f} "
+            f"| {r['perdida_inventario_b_pct_prom']:.1f} |"
+        )
+    return "\n".join(lineas) + "\n"
+
+
+def tabla_sensibilidad(resumen: list[dict]) -> str:
+    lineas = [
+        "",
+        f"## Sensibilidad al supuesto de venta ({DIAS_SENSIBILIDAD} días)",
+        "",
+        "El menú del día se prepara completo al inicio del día; se vende la fracción "
+        "indicada de su demanda estimada y lo que sobra se tira como merma.",
+        "",
+        "| Escenario | Venta | Merma A (kg) | Merma B (kg) | Desperdicio evitado (%) "
+        "| Porciones sobrantes B |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for r in sorted(resumen, key=lambda r: (ESCENARIOS.index(r["escenario"]), -r["venta"])):
+        lineas.append(
+            f"| {NOMBRES[r['escenario']]} | {r['venta']:.0%} "
+            f"| {r['merma_a_kg_prom']:.2f} | {r['merma_b_kg_prom']:.2f} "
+            f"| {r['desperdicio_evitado_pct_prom']:.1f} ± {r['desperdicio_evitado_pct_de']:.1f} "
+            f"[{r['desperdicio_evitado_pct_min']:.1f}, {r['desperdicio_evitado_pct_max']:.1f}] "
+            f"| {r['sobrantes_menu_dia_b_prom']:.1f} |"
+        )
     return "\n".join(lineas) + "\n"
 
 
@@ -251,22 +366,7 @@ def escribir_csv(ruta: Path, filas: list[dict], columnas: list[str]) -> None:
 
 
 def graficar(filas: list[dict], resumen: list[dict], salida: Path) -> None:
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    plt.rcParams.update(
-        {
-            "font.size": 10,
-            "axes.edgecolor": REJILLA,
-            "axes.labelcolor": TINTA_2,
-            "xtick.color": TINTA_2,
-            "ytick.color": TINTA_2,
-            "text.color": TINTA,
-            "svg.hashsalt": "menucero",
-        }
-    )
+    plt = _pyplot()
     horizontes = sorted({r["dias"] for r in resumen})
     escenarios = [e for e in ESCENARIOS if any(r["escenario"] == e for r in resumen)]
     por_clave = {(r["escenario"], r["dias"]): r for r in resumen}
@@ -386,6 +486,94 @@ def graficar(filas: list[dict], resumen: list[dict], salida: Path) -> None:
     plt.close(fig)
 
 
+def graficar_sensibilidad(resumen: list[dict], salida: Path) -> None:
+    """% evitado promedio según la fracción vendida del menú del día."""
+    plt = _pyplot()
+    fig, eje = plt.subplots(figsize=(7.2, 4.4))
+    fig.patch.set_facecolor(FONDO)
+    _estilo(eje)
+    ventas = sorted({r["venta"] for r in resumen}, reverse=True)
+    finales = {}
+    for escenario in ESCENARIOS:
+        puntos = {r["venta"]: r for r in resumen if r["escenario"] == escenario}
+        y = [puntos[v]["desperdicio_evitado_pct_prom"] for v in ventas]
+        color = COLORES_ESCENARIO[escenario]
+        eje.plot(
+            [100 * v for v in ventas],
+            y,
+            color=color,
+            linewidth=2,
+            marker=MARCAS_ESCENARIO[escenario],
+            markersize=7,
+            markeredgecolor=FONDO,
+            markeredgewidth=1.5,
+            label=NOMBRES[escenario],
+            zorder=3,
+        )
+        finales[escenario] = y[-1]
+    # Etiquetas al final de cada línea, separadas para que no se encimen.
+    alto = eje.get_ylim()[1] - eje.get_ylim()[0]
+    previa = None
+    for escenario, valor in sorted(finales.items(), key=lambda par: par[1]):
+        posicion = valor if previa is None else max(valor, previa + 0.05 * alto)
+        previa = posicion
+        eje.annotate(
+            f"{NOMBRES[escenario]} {valor:.1f} %",
+            (100 * ventas[-1], valor),
+            xytext=(100 * ventas[-1] - 3, posicion),
+            textcoords="data",
+            va="center",
+            fontsize=8,
+            color=TINTA_2,
+        )
+    eje.axhline(0, color=TINTA_2, linewidth=0.8, zorder=1)
+    eje.set_xlim(100 * ventas[0] + 3, 100 * ventas[-1] - 22)
+    eje.set_xticks([100 * v for v in ventas], [f"{100 * v:.0f} %" for v in ventas])
+    eje.set_xlabel("Parte vendida de la demanda estimada del menú del día")
+    eje.set_ylabel("Desperdicio evitado promedio (%)")
+    eje.legend(loc="lower left", frameon=False, fontsize=8)
+    fig.suptitle(
+        "Si el menú del día no se vende completo, lo que sobra se tira",
+        x=0.01,
+        ha="left",
+        fontsize=12,
+        color=TINTA,
+    )
+    fig.text(
+        0.01,
+        0.005,
+        f"{DIAS_SENSIBILIDAD} días; menú del día preparado completo; promedio de "
+        f"{resumen[0]['corridas']} semillas. Bajo 0, B tira más que A.",
+        fontsize=8,
+        color=TINTA_2,
+    )
+    fig.tight_layout(rect=(0, 0.03, 1, 0.94))
+    fig.savefig(
+        salida / "sensibilidad_venta.png", dpi=150, facecolor=FONDO, metadata={"Software": None}
+    )
+    plt.close(fig)
+
+
+def _pyplot():
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    plt.rcParams.update(
+        {
+            "font.size": 10,
+            "axes.edgecolor": REJILLA,
+            "axes.labelcolor": TINTA_2,
+            "xtick.color": TINTA_2,
+            "ytick.color": TINTA_2,
+            "text.color": TINTA,
+            "svg.hashsalt": "menucero",
+        }
+    )
+    return plt
+
+
 def _estilo(eje) -> None:
     eje.set_facecolor(FONDO)
     eje.grid(axis="y", color=REJILLA, linewidth=0.8, zorder=0)
@@ -400,6 +588,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--datos", type=Path, default=RAIZ / "data" / "escenarios")
     parser.add_argument("--salida", type=Path, default=RAIZ / "resultados")
     parser.add_argument("--sin-graficas", action="store_true")
+    parser.add_argument("--sin-sensibilidad", action="store_true")
     args = parser.parse_args(argv)
 
     filas = correr(args.datos, ESCENARIOS, args.dias, range(1, args.semillas + 1))
@@ -408,6 +597,13 @@ def main(argv: list[str] | None = None) -> None:
     escribir_csv(args.salida / "simulacion.csv", filas, COLUMNAS)
     escribir_csv(args.salida / "resumen.csv", resumen, list(resumen[0]))
     tabla = tabla_markdown(resumen, filas[0]["voraz"], args.semillas)
+    if not args.sin_sensibilidad:
+        filas_s = sensibilidad(args.datos, range(1, args.semillas + 1))
+        escribir_csv(args.salida / "sensibilidad_venta.csv", filas_s, ["venta", *COLUMNAS])
+        resumen_s = resumir(filas_s, ("escenario", "venta"))
+        tabla += tabla_sensibilidad(resumen_s)
+        if not args.sin_graficas:
+            graficar_sensibilidad(resumen_s, args.salida)
     (args.salida / "resumen.md").write_text(tabla, encoding="utf-8")
     if not args.sin_graficas:
         graficar(filas, resumen, args.salida)

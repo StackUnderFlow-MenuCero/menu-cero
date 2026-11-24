@@ -15,8 +15,14 @@ El simulador avanza ``dias`` días a partir de ``hoy`` con el inventario inicial
 
 Con ``ruido=True``, la demanda de cada platillo es Poisson con media la demanda
 estimada, y la del menú del día limita lo que se vende de cada propuesta. Las
-demandas se sortean al inicio, antes de cualquier decisión, para que A y B con
-la misma semilla vean exactamente los mismos clientes.
+demandas se sortean al inicio, antes de cualquier decisión, y la del menú fijo
+sale de su propia secuencia aleatoria: A y B con la misma semilla ven
+exactamente los mismos clientes del menú fijo.
+
+Dos parámetros sirven para probar el supuesto de venta del menú del día:
+``venta`` multiplica su demanda (0.5 = se vende la mitad de lo estimado) y, con
+``sobrante_es_merma=True``, el menú del día se prepara completo al inicio del
+día y las porciones que no se venden se tiran y cuentan como merma.
 
 El voraz se puede pasar en ``generador``. Si no se pasa, se usa
 ``menucero.voraz.generar_menu`` (#20) y, mientras no esté en ``main``, el
@@ -48,7 +54,8 @@ class ResultadoSimulacion:
 
     ``consumo_diario`` tiene un registro por día con las llaves ``fecha``,
     ``consumo_kg`` y ``merma_kg`` (por ingrediente), ``porciones_fijas``,
-    ``porciones_menu_dia`` y ``no_atendidas`` (por receta). ``menus`` guarda el
+    ``porciones_menu_dia``, ``sobrantes_menu_dia`` y ``no_atendidas`` (por
+    receta). ``menus`` guarda el
     menú del día propuesto cada día (vacío en A).
     """
 
@@ -75,6 +82,8 @@ def simular(
     semilla: int | None = None,
     ruido: bool = False,
     generador: Generador | None = None,
+    venta: float = 1.0,
+    sobrante_es_merma: bool = False,
 ) -> ResultadoSimulacion:
     """Simula ``dias`` días del escenario ``"A"`` o ``"B"`` a partir de ``hoy``.
 
@@ -88,6 +97,8 @@ def simular(
         raise ValueError(f"escenario debe ser 'A' o 'B', no {escenario!r}")
     if dias < 1:
         raise ValueError("dias debe ser al menos 1")
+    if venta < 0:
+        raise ValueError("venta no puede ser negativa")
 
     ingredientes = _lista(ingredientes)
     recetas = sorted(_lista(recetas), key=lambda r: r.id)
@@ -98,7 +109,7 @@ def simular(
     stock = {ing.id: ing.cantidad_kg for ing in ingredientes}
     costo = {ing.id: ing.costo_kg for ing in ingredientes}
     merma = dict.fromkeys(stock, 0.0)
-    demanda_fija, demanda_menu = _sortear_demandas(recetas, dias, semilla, ruido)
+    demanda_fija, demanda_menu = _sortear_demandas(recetas, dias, semilla, ruido, venta)
 
     registro: list[dict] = []
     menus: list[dict[str, int]] = []
@@ -136,17 +147,18 @@ def simular(
                 no_atendidas[receta.id] = pedidas - x
 
         vendidas: dict[str, int] = {}
+        sobrantes: dict[str, int] = {}
         for receta in recetas:
             if receta.id not in propuesta:
                 continue
-            x = min(
-                propuesta[receta.id],
-                demanda_menu[t][receta.id],
-                _maximo(receta, stock, por_id, fecha),
-            )
+            posibles = min(propuesta[receta.id], _maximo(receta, stock, por_id, fecha))
+            x = min(posibles, demanda_menu[t][receta.id])
             if x > 0:
                 _consumir(receta, x, stock, consumo)
                 vendidas[receta.id] = x
+            if sobrante_es_merma and posibles > x:
+                _consumir(receta, posibles - x, stock, merma_dia)
+                sobrantes[receta.id] = posibles - x
 
         for i, ing in por_id.items():
             if ing.fecha_caducidad == fecha and stock[i] > EPS:
@@ -164,6 +176,7 @@ def simular(
                 "merma_kg": _limpiar(merma_dia),
                 "porciones_fijas": servidas,
                 "porciones_menu_dia": vendidas,
+                "sobrantes_menu_dia": sobrantes,
                 "no_atendidas": no_atendidas,
             }
         )
@@ -251,16 +264,22 @@ def _consumir(receta: Any, x: int, stock: dict[str, float], consumo: dict[str, f
 
 
 def _sortear_demandas(
-    recetas: list[Any], dias: int, semilla: int | None, ruido: bool
+    recetas: list[Any], dias: int, semilla: int | None, ruido: bool, venta: float = 1.0
 ) -> tuple[list[dict[str, int]], list[dict[str, int]]]:
-    """Demanda fija y del menú del día de cada receta, día por día."""
-    rng = random.Random(semilla)
+    """Demanda fija y del menú del día de cada receta, día por día.
+
+    Cada una sale de su propia secuencia aleatoria, para que cambiar ``venta`` no
+    cambie los clientes del menú fijo.
+    """
+    rng_fija = random.Random(semilla)
+    rng_menu = random.Random(None if semilla is None else f"menu-{semilla}")
     fija, menu = [], []
     for _ in range(dias):
         f, m = {}, {}
         for r in recetas:
-            f[r.id] = _poisson(rng, r.demanda_fija) if ruido else r.demanda_fija
-            m[r.id] = _poisson(rng, r.demanda_menu_dia) if ruido else r.demanda_menu_dia
+            media = r.demanda_menu_dia * venta
+            f[r.id] = _poisson(rng_fija, r.demanda_fija) if ruido else r.demanda_fija
+            m[r.id] = _poisson(rng_menu, media) if ruido else floor(media + 0.5)
         fija.append(f)
         menu.append(m)
     return fija, menu
