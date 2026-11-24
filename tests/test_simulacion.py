@@ -212,3 +212,38 @@ def test_rechaza_parametros_invalidos(kwargs, mensaje):
     ingredientes, recetas = leer_ejemplo()
     with pytest.raises(ValueError, match=mensaje):
         simular(ingredientes, recetas, HOY, **kwargs)
+
+
+def test_lo_que_no_se_vende_del_menu_del_dia_puede_contar_como_merma():
+    ingredientes = [Ingrediente("I1", "Pollo", 3.0, dia(5), 100.0)]
+    recetas = [Receta("R2", "Tinga", "secundaria", {"I1": 0.1}, demanda_menu_dia=20)]
+
+    def propone_20(*_):
+        return {"R2": 20}
+
+    comun = {"dias": 1, "escenario": "B", "generador": propone_20, "venta": 0.5}
+    sobre_pedido = simular(ingredientes, recetas, HOY, **comun)
+    se_tira = simular(ingredientes, recetas, HOY, sobrante_es_merma=True, **comun)
+
+    # Se venden 10 de 20; sobre pedido no se prepara el resto, si se tira es merma.
+    assert sobre_pedido.consumo_diario[0]["porciones_menu_dia"] == {"R2": 10}
+    assert sobre_pedido.merma_kg == {"I1": 0.0}
+    assert se_tira.consumo_diario[0]["porciones_menu_dia"] == {"R2": 10}
+    assert se_tira.consumo_diario[0]["sobrantes_menu_dia"] == {"R2": 10}
+    assert se_tira.merma_kg == {"I1": pytest.approx(1.0)}
+    assert se_tira.merma_costo == pytest.approx(100.0)
+    assert se_tira.inventario_final == {"I1": pytest.approx(1.0)}
+
+
+def test_cambiar_la_venta_no_cambia_los_clientes_del_menu_fijo():
+    ingredientes, recetas = leer_ejemplo()
+    comun = {"escenario": "B", "semilla": 5, "ruido": True}
+    completa = simular(ingredientes, recetas, HOY, **comun)
+    mitad = simular(ingredientes, recetas, HOY, venta=0.5, sobrante_es_merma=True, **comun)
+    assert pedidas(completa) == pedidas(mitad)
+
+
+def test_rechaza_venta_negativa():
+    ingredientes, recetas = leer_ejemplo()
+    with pytest.raises(ValueError, match="venta"):
+        simular(ingredientes, recetas, HOY, venta=-0.1)
