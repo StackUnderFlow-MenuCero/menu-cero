@@ -1,5 +1,6 @@
 """Pruebas de la página web pública (scripts/pagina.py, #49)."""
 
+import json
 import re
 
 import pytest
@@ -12,6 +13,7 @@ SECCIONES = (
     "equipo",
     "algoritmos",
     "metodologia",
+    "dia-a-dia",
     "resultados",
     "conclusiones",
     "enlaces",
@@ -114,3 +116,48 @@ def test_el_historial_separa_el_numero_de_pr_y_escapa_el_texto():
 @pytest.mark.parametrize(("x", "esperado"), [(1149.684, "1,149.7"), (-29.0, "−29.0")])
 def test_formato_de_numeros(x, esperado):
     assert pagina.num(x) == esperado
+
+
+@pytest.fixture(scope="module")
+def visor():
+    return pagina.datos_visor()
+
+
+def test_el_visor_da_la_misma_merma_que_la_corrida_guardada(visor):
+    filas = {
+        (f["escenario"], f["dias"], f["semilla"]): f
+        for f in pagina.leer(pagina.RESULTADOS / "simulacion.csv")
+    }
+    assert [e["id"] for e in visor["escenarios"]] == list(simular.ESCENARIOS)
+    for e in visor["escenarios"]:
+        fila = filas[(e["id"], str(pagina.DIAS_VISOR), str(pagina.SEMILLA_VISOR))]
+        for lado in ("A", "B"):
+            assert len(e[lado]) == pagina.DIAS_VISOR
+            total = sum(sum(d["merma"]) for d in e[lado])
+            assert total == pytest.approx(float(fila[f"merma_{lado.lower()}_kg"]), abs=0.01)
+
+
+def test_el_inventario_del_visor_se_conserva_dia_con_dia(visor):
+    for e in visor["escenarios"]:
+        for lado in ("A", "B"):
+            dias = e[lado]
+            for hoy, manana in zip(dias, dias[1:], strict=False):
+                for i, kg in enumerate(manana["stock"]):
+                    esperado = hoy["stock"][i] - hoy["consumo"][i] - hoy["merma"][i]
+                    assert kg == pytest.approx(max(esperado, 0.0), abs=0.002)
+        assert all(not d["menu"] for d in e["A"])  # A nunca tiene menú del día
+
+
+def test_la_pagina_trae_el_visor_con_sus_datos(sitio):
+    salida, html = sitio
+    assert (salida / "visor.js").is_file()
+    m = re.search(r'<script id="datos-visor" type="application/json">(.*?)</script>', html, re.S)
+    datos = json.loads(m.group(1))
+    assert len(datos["fechas"]) == pagina.DIAS_VISOR
+    assert {e["nombre"] for e in datos["escenarios"]} == set(simular.NOMBRES.values())
+
+
+def test_el_json_no_cierra_el_script_antes_de_tiempo():
+    texto = pagina.json_en_html({"nombre": "</script><b>"})
+    assert "</" not in texto
+    assert json.loads(texto) == {"nombre": "</script><b>"}

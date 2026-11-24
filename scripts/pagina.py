@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import csv
 import html
+import json
 import re
 import shutil
 import subprocess
@@ -32,10 +33,13 @@ from pathlib import Path
 
 import simular
 from generar_demo import HOY_DEMO
+from menucero.simulacion import simular as simular_escenario
+from menucero.simulacion import voraz_por_omision
 
 RAIZ = simular.RAIZ
 PLANTILLA = RAIZ / "pagina" / "plantilla.html"
 ESTILO = RAIZ / "pagina" / "estilo.css"
+VISOR = RAIZ / "pagina" / "visor.js"
 RESULTADOS = RAIZ / "resultados"
 DEMO = RAIZ / "data" / "demo"
 REPO = "https://github.com/StackUnderFlow-MenuCero/menu-cero"
@@ -44,6 +48,16 @@ DESCARGAS = ("simulacion.csv", "resumen.csv", "sensibilidad_venta.csv")
 T95 = {30: 2.045}  # t de Student al 95 % según el número de corridas
 MARCA = re.compile(r"\{\{\s*(\w+)\s*\}\}")
 PR = re.compile(r"\s*\(#(\d+)\)$")
+SEMILLA_VISOR = 1
+DIAS_VISOR = 7
+DIAS_SEMANA = ("lun", "mar", "mié", "jue", "vie", "sáb", "dom")
+MESES = ("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
+DESCRIPCIONES = {
+    "normal": "Una semana de clases con la demanda estimada.",
+    "examenes": "Semana de exámenes: la demanda baja al 80 %.",
+    "vacaciones": "Vacaciones: la demanda baja al 25 % con el mismo inventario.",
+    "alta_caducidad": "Regreso de un puente: varios ingredientes ya caducaron o están por caducar.",
+}
 
 
 def leer(ruta: Path) -> list[dict[str, str]]:
@@ -328,6 +342,89 @@ def evidencias(pruebas: int | None) -> dict[str, str]:
     }
 
 
+# --- visor día por día ---------------------------------------------------------
+
+
+def _fecha_corta(d: date) -> str:
+    return f"{DIAS_SEMANA[d.weekday()]} {d.day} {MESES[d.month - 1]}"
+
+
+def _dias(resultado, ids: list[str], inicial: list[float]) -> list[dict]:
+    """Cada día de una corrida con arreglos alineados a ``ids``."""
+    stock = list(inicial)
+    dias = []
+    for r in resultado.consumo_diario:
+        consumo = [r["consumo_kg"].get(i, 0.0) for i in ids]
+        merma = [r["merma_kg"].get(i, 0.0) for i in ids]
+        dias.append(
+            {
+                "stock": [round(kg, 3) for kg in stock],
+                "consumo": [round(kg, 3) for kg in consumo],
+                "merma": [round(kg, 3) for kg in merma],
+                "menu": resultado.menus[r["dia"] - 1] if resultado.menus else {},
+                "vendidas": r["porciones_menu_dia"],
+                "fijas": sum(r["porciones_fijas"].values()),
+                "no_atendidas": sum(r["no_atendidas"].values()),
+            }
+        )
+        stock = [max(0.0, s - c - m) for s, c, m in zip(stock, consumo, merma, strict=True)]
+    return dias
+
+
+def datos_visor(
+    datos: Path = RAIZ / "data" / "escenarios",
+    semilla: int = SEMILLA_VISOR,
+    dias: int = DIAS_VISOR,
+) -> dict:
+    """Una corrida día por día de A y B en cada escenario, con el simulador real.
+
+    Usa la misma configuración que ``simular.correr`` (demanda Poisson con
+    ``semilla``), así que el total de merma coincide con esa fila de
+    ``resultados/simulacion.csv``.
+    """
+    generador = voraz_por_omision()
+    escenarios = []
+    for escenario in simular.ESCENARIOS:
+        ingredientes, recetas = simular.leer_escenario(datos / escenario, HOY_DEMO)
+        ids = [ing.id for ing in ingredientes]
+        inicial = [ing.cantidad_kg for ing in ingredientes]
+        comun = {"dias": dias, "semilla": semilla, "ruido": True}
+        a = simular_escenario(ingredientes, recetas, HOY_DEMO, escenario="A", **comun)
+        b = simular_escenario(
+            ingredientes, recetas, HOY_DEMO, escenario="B", generador=generador, **comun
+        )
+        escenarios.append(
+            {
+                "id": escenario,
+                "nombre": simular.NOMBRES[escenario],
+                "descripcion": DESCRIPCIONES[escenario],
+                "ingredientes": [
+                    {
+                        "nombre": ing.nombre,
+                        "costo": ing.costo_kg,
+                        # Día de la corrida (1 = el primero) en que caduca; ≤ 0 si ya caducó.
+                        "vence": (ing.fecha_caducidad - HOY_DEMO).days + 1,
+                    }
+                    for ing in ingredientes
+                ],
+                "recetas": {r.id: r.platillo for r in recetas},
+                "A": _dias(a, ids, inicial),
+                "B": _dias(b, ids, inicial),
+            }
+        )
+    return {
+        "semilla": semilla,
+        "voraz": simular.nombre_voraz(),
+        "fechas": [_fecha_corta(HOY_DEMO + timedelta(days=t)) for t in range(dias)],
+        "escenarios": escenarios,
+    }
+
+
+def json_en_html(datos: dict) -> str:
+    """JSON que se puede poner dentro de ``<script>`` sin cerrarlo antes de tiempo."""
+    return json.dumps(datos, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+
+
 # --- construcción --------------------------------------------------------------
 
 
@@ -344,6 +441,9 @@ def valores(resultados: Path = RESULTADOS, pruebas: int | None = None) -> dict[s
         **cifras(simulacion, resumen, sensibilidad),
         **conteo_demo(),
         **evidencias(pruebas),
+        "datos_visor": json_en_html(datos_visor()),
+        "semilla_visor": str(SEMILLA_VISOR),
+        "dias_visor": str(DIAS_VISOR),
     }
 
 
@@ -357,6 +457,7 @@ def construir(salida: Path, con_pruebas: bool = True) -> Path:
     for nombre in FIGURAS + DESCARGAS:
         shutil.copy2(RESULTADOS / nombre, salida / "resultados" / nombre)
     shutil.copy2(ESTILO, salida / "estilo.css")
+    shutil.copy2(VISOR, salida / "visor.js")
     (salida / ".nojekyll").touch()  # GitHub Pages sirve los archivos tal cual
     indice = salida / "index.html"
     indice.write_text(pagina, encoding="utf-8")
