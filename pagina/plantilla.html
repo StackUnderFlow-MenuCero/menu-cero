@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Menú Cero · StackUnderFlow</title>
+  <meta name="description" content="Menú Cero genera un menú del día que usa primero los ingredientes próximos a caducar. Problema, algoritmos, metodología, resultados y evidencias del proyecto.">
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <a class="saltar" href="#contenido">Saltar al contenido</a>
+
+  <nav class="barra" aria-label="Secciones">
+    <a class="marca" href="#">Menú Cero</a>
+    <ul>
+      <li><a href="#problema">Problema</a></li>
+      <li><a href="#equipo">Equipo</a></li>
+      <li><a href="#algoritmos">Algoritmos</a></li>
+      <li><a href="#metodologia">Metodología</a></li>
+      <li><a href="#resultados">Resultados</a></li>
+      <li><a href="#conclusiones">Conclusiones</a></li>
+      <li><a href="#enlaces">Enlaces</a></li>
+      <li><a href="#evidencias">Evidencias</a></li>
+    </ul>
+  </nav>
+
+  <header class="portada">
+    <p class="antetitulo">Equipo StackUnderFlow · CUCEI, Universidad de Guadalajara</p>
+    <h1>Menú Cero</h1>
+    <p class="lema">Un menú del día que usa primero los ingredientes que están por caducar.</p>
+    <p class="entrada">
+      En un puesto de comida con menú fijo, lo que se tira son los ingredientes de los platillos que
+      casi nadie pide. Menú Cero lee el inventario, las recetas y la demanda, y propone un menú del día
+      que aprovecha esos ingredientes antes de que venzan. Lo comprobamos simulando el mismo negocio
+      con y sin menú del día.
+    </p>
+    <ul class="cifras" aria-label="Resultados principales">
+      <li>
+        <span class="cifra">{{ evitado_prom_min }}–{{ evitado_prom_max }} %</span>
+        <span class="cifra-texto">de la merma se evita en promedio con el menú del día, según el escenario</span>
+      </li>
+      <li>
+        <span class="cifra">{{ urgentes_a }} % → {{ urgentes_b }} %</span>
+        <span class="cifra-texto">de los ingredientes por vencer que se pierden en la demostración, sin y con menú del día</span>
+      </li>
+      <li>
+        <span class="cifra">{{ pares_b_menor }} de {{ pares }}</span>
+        <span class="cifra-texto">corridas simuladas en las que el menú del día dejó menos merma</span>
+      </li>
+    </ul>
+    <p class="botones">
+      <a class="boton" href="#resultados">Ver los resultados</a>
+      <a class="boton secundario" href="{{ repo }}">Repositorio en GitHub</a>
+    </p>
+  </header>
+
+  <main id="contenido">
+
+    <section id="problema">
+      <h2>El problema</h2>
+      <div class="prosa">
+        <p>
+          Dentro y alrededor de CUCEI hay restaurantes, cocinas económicas y puestos que trabajan con un
+          <strong>menú fijo</strong>: ofrecen los mismos platillos todos los días. Los platillos populares
+          tienen salida constante y sus ingredientes casi nunca se echan a perder. El desperdicio se
+          concentra en los <strong>platillos poco solicitados</strong>: la crema o los champiñones que se
+          compraron para un platillo que se pide dos o tres veces por semana se quedan en el refrigerador
+          hasta caducar.
+        </p>
+        <p>
+          El inventario se lleva en libreta, en hojas de cálculo o, pocas veces, en un sistema comercial.
+          Esas herramientas dicen qué hay y cuándo vence, pero no lo relacionan con las recetas ni con la
+          demanda, así que no recomiendan qué ofrecer. Según el <cite>Food Waste Index Report 2024</cite>
+          del PNUMA, en 2022 se desperdició cerca del 19 % de los alimentos disponibles para los
+          consumidores, y el sector de servicios de comida generó alrededor del 28 % de ese desperdicio.
+        </p>
+        <blockquote>
+          <p class="cita-titulo">Objetivo general</p>
+          <p>
+            Desarrollar un prototipo de programa local que, a partir del inventario, las recetas y la
+            demanda estimada de un restaurante o puesto de comida con menú fijo como los que hay dentro y
+            alrededor de CUCEI, genere un menú del día que priorice el uso de los ingredientes próximos a
+            caducar, con el fin de reducir el desperdicio de ingredientes y su costo en comparación con
+            trabajar solo con el menú fijo, lo cual se comprobará mediante simulaciones con datos de prueba.
+          </p>
+        </blockquote>
+        <h3>Qué hace Menú Cero</h3>
+        <ol>
+          <li><strong>Carga</strong> tres CSV: inventario (cantidad, caducidad y costo), recetas (kg de cada ingrediente por porción) y demanda (porciones por día).</li>
+          <li><strong>Calcula</strong> los días que le quedan a cada ingrediente, su prioridad y sus <em>kg en riesgo</em>: lo que el menú fijo no alcanzará a usar antes de que venza.</li>
+          <li><strong>Genera</strong> con un algoritmo voraz propuestas de menú del día que usan primero esos kg, sin pasarse del inventario ni de la demanda y solo con recetas que el negocio ya prepara.</li>
+          <li><strong>Evalúa</strong> con un simulador día por día cuánta merma hay solo con el menú fijo y con el menú del día.</li>
+        </ol>
+        <p>Todo corre en una computadora, sin internet ni servidores.</p>
+      </div>
+    </section>
+
+    <section id="equipo">
+      <h2>Equipo</h2>
+      <ul class="tarjetas cuatro">
+        <li class="tarjeta">
+          <p class="rol">A · Datos y evaluación</p>
+          <p class="persona"><a href="https://github.com/SalvadorRGDev">SalvadorRGDev</a></p>
+          <p>Caracterización del negocio, datos de prueba y simulación A contra B.</p>
+        </li>
+        <li class="tarjeta">
+          <p class="rol">B · Algoritmo</p>
+          <p class="persona">Arath · <a href="https://github.com/arcamp0130">@arcamp0130</a></p>
+          <p>Modelo formal, algoritmo voraz y su eficiencia frente a la fuerza bruta.</p>
+        </li>
+        <li class="tarjeta">
+          <p class="rol">C · Prototipo</p>
+          <p class="persona">Edwin · <a href="https://github.com/edguzsv">@edguzsv</a></p>
+          <p>Carga de los CSV, métricas de aprovechamiento y la aplicación.</p>
+        </li>
+        <li class="tarjeta">
+          <p class="rol">D · Soporte y documentación</p>
+          <p class="persona">Less · <a href="https://github.com/alesspiz">@alesspiz</a></p>
+          <p>Repositorio, mediciones de rendimiento, reporte y entregas.</p>
+        </li>
+      </ul>
+    </section>
+
+    <section id="algoritmos">
+      <h2>Estrategias y algoritmos</h2>
+      <div class="prosa">
+        <p>
+          Elegir cuántas porciones de cada platillo poner en el menú del día es una variante de la
+          <strong>mochila 0/1 multidimensional</strong>: cada ingrediente es una capacidad (los kg que
+          hay), la demanda limita las porciones de cada platillo, y el beneficio es usar los kg que se
+          perderían, pesados por su urgencia.
+        </p>
+        <ul>
+          <li><strong>Prioridad</strong> de un ingrediente que vence en <var>d</var> días: <code>p = 1 / (d + 1)</code>. Vale 1 si vence hoy y baja conforme falta más.</li>
+          <li><strong>Kg en riesgo</strong>: los kg que quedarán sin usar al vencer si solo se vende el menú fijo.</li>
+          <li><strong>Valor de un menú</strong>: <code>V = Σ p · min(kg usados, kg en riesgo)</code>. Solo cuenta lo que se rescata, no lo que se iba a usar de todos modos.</li>
+        </ul>
+      </div>
+      <ul class="tarjetas dos">
+        <li class="tarjeta">
+          <p class="estado hecho">Implementado</p>
+          <h3>Prototipo voraz v0</h3>
+          <p>La primera solución ejecutable (Checkpoint 1), en <code>prototipo/voraz_v0.py</code>:</p>
+          <ol>
+            <li>Da a cada receta un puntaje: lo que aprovecha por porción de los ingredientes en riesgo, pesado por su prioridad.</li>
+            <li>Recorre las recetas de mayor a menor puntaje.</li>
+            <li>A cada una le asigna todas las porciones posibles sin pasar su demanda ni el inventario.</li>
+          </ol>
+          <p>Es el voraz que usan los resultados de esta página.</p>
+        </li>
+        <li class="tarjeta">
+          <p class="estado hecho">Implementado</p>
+          <h3>Simulador día por día</h3>
+          <p>En <code>src/menucero/simulacion.py</code>. Avanza con el inventario inicial y sin reposición. Cada día:</p>
+          <ol>
+            <li>Atiende primero el menú fijo; lo que no alcanza son porciones no atendidas.</li>
+            <li>En el escenario B, genera el menú del día con el inventario de ese día y vende lo que se pide.</li>
+            <li>Lo que llega a su fecha de caducidad sin usarse es merma.</li>
+          </ol>
+        </li>
+        <li class="tarjeta">
+          <p class="estado proceso">En desarrollo · <a href="{{ repo }}/issues/20">#20</a>, <a href="{{ repo }}/issues/23">#23</a></p>
+          <h3>Voraz principal</h3>
+          <p>Mejora tres cosas del v0:</p>
+          <ul>
+            <li>recorre primero los ingredientes más urgentes;</li>
+            <li>no prepara más porciones de las necesarias para salvar un ingrediente;</li>
+            <li>genera de 3 a 5 propuestas distintas.</li>
+          </ul>
+        </li>
+        <li class="tarjeta">
+          <p class="estado proceso">En desarrollo · <a href="{{ repo }}/issues/24">#24</a>, <a href="{{ repo }}/issues/29">#29</a></p>
+          <h3>Fuerza bruta y complejidad</h3>
+          <p>
+            Prueba todas las combinaciones con pocas recetas (hasta 20) para medir qué tan lejos queda el
+            voraz del óptimo. Junto con el análisis de complejidad, justifica por qué el voraz es la
+            estrategia pertinente para este problema.
+          </p>
+        </li>
+      </ul>
+    </section>
+
+    <section id="metodologia">
+      <h2>Metodología experimental</h2>
+      <div class="prosa">
+        <p>
+          <strong>Pregunta.</strong> ¿Cuánto desperdicio y cuánto dinero ahorra un puesto con menú fijo si
+          cada día agrega el menú del día que propone el voraz?
+        </p>
+      </div>
+      <div class="dos-columnas">
+        <div>
+          <h3>Qué se compara</h3>
+          <ul class="leyenda-escenarios">
+            <li><span class="muestra a" aria-hidden="true"></span><strong>A</strong>: solo el menú fijo.</li>
+            <li><span class="muestra b" aria-hidden="true"></span><strong>B</strong>: el menú fijo y, además, el menú del día que genera el voraz.</li>
+          </ul>
+          <p>
+            La demanda de cada platillo es aleatoria (Poisson, con media la demanda estimada). A y B con la
+            misma semilla atienden exactamente a los mismos clientes del menú fijo, así que la diferencia se
+            debe solo al menú del día.
+          </p>
+        </div>
+        <div>
+          <h3>Casos de prueba</h3>
+          <ul>
+            <li><strong>Demostración</strong> (<code>data/demo</code>): {{ demo_ingredientes }} ingredientes, {{ demo_urgentes }} vencen en menos de 48 horas, {{ demo_recetas }} recetas; fecha {{ demo_fecha }}.</li>
+            <li><strong>{{ escenarios }} escenarios</strong> (<code>data/escenarios</code>): semana normal, exámenes (demanda × 0.80), vacaciones (demanda × 0.25) y alta caducidad (regreso de un puente).</li>
+            <li><strong>Horizontes</strong> de {{ horizontes }} días y <strong>{{ semillas }} semillas</strong> por combinación: {{ pares }} parejas A–B.</li>
+            <li><strong>Voraz</strong>: {{ voraz }}.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Métricas</h3>
+      <dl class="metricas">
+        <div>
+          <dt>Desperdicio evitado</dt>
+          <dd><code>100 × (merma A − merma B) / merma A</code></dd>
+        </div>
+        <div>
+          <dt>Costo ahorrado</dt>
+          <dd><code>Σ costo por kg × (merma A − merma B)</code>, por ingrediente</dd>
+        </div>
+        <div>
+          <dt>Pérdida de urgentes</dt>
+          <dd>Porcentaje de los kg que vencen hoy o mañana que termina como merma</dd>
+        </div>
+      </dl>
+      <p class="nota">
+        Los intervalos de confianza del 95 % usan la t de Student con {{ semillas }} corridas. Además,
+        {{ pruebas }} pruebas automatizadas (pytest) y el linter (ruff) corren en cada pull request.
+      </p>
+    </section>
+
+    <section id="resultados">
+      <h2>Resultados</h2>
+      <div class="prosa">
+        <p>
+          <strong>B tuvo menos merma que A en {{ pares_b_menor }} de {{ pares }} parejas.</strong> En
+          promedio, el menú del día evitó entre el {{ evitado_prom_min }} % y el {{ evitado_prom_max }} % de
+          la merma según el escenario y el horizonte. La peor corrida evitó el {{ evitado_min }} % y la mejor
+          el {{ evitado_max }} %.
+        </p>
+      </div>
+
+      <p class="tabla-titulo"><strong>Tabla 1.</strong> Merma solo con el menú fijo (A) y con el menú del día (B). Promedio ± desviación estándar de {{ semillas }} semillas.</p>
+      {{ tabla_merma }}
+
+      <div class="figuras">
+        <figure>
+          <a href="resultados/merma_a_vs_b.png"><img src="resultados/merma_a_vs_b.png" alt="Gráfica de barras de la merma promedio de A y de B en cada escenario y horizonte. Los valores están en la Tabla 1." loading="lazy"></a>
+          <figcaption><strong>Figura 1.</strong> Merma promedio de A y B por escenario; la línea es ± 1 desviación estándar.</figcaption>
+        </figure>
+        <figure>
+          <a href="resultados/desperdicio_evitado.png"><img src="resultados/desperdicio_evitado.png" alt="Diagrama de caja del desperdicio evitado en cada semilla, por escenario y horizonte. El promedio y la desviación de cada caja están en la Tabla 1." loading="lazy"></a>
+          <figcaption><strong>Figura 2.</strong> Desperdicio evitado en cada una de las {{ semillas }} semillas.</figcaption>
+        </figure>
+      </div>
+
+      <h3>Los ingredientes por vencer</h3>
+      <div class="prosa">
+        <p>
+          En la planeación estimamos que, solo con el menú fijo, podría perderse <em>hasta el 60 %</em> de
+          los ingredientes que vencen en menos de 48 horas. En la demostración se pierde el
+          <strong>{{ urgentes_a }} %</strong> de sus {{ urgentes_kg }} kg; con el menú del día, el
+          <strong>{{ urgentes_b }} %</strong>. El menú del día no elimina la pérdida: solo vende lo que se
+          estima que piden los clientes, y varios de esos ingredientes se usan en pocas recetas.
+        </p>
+      </div>
+      <p class="tabla-titulo"><strong>Tabla 2.</strong> Porcentaje de los kg urgentes (vencen hoy o mañana) que termina como merma, en 3 días.</p>
+      {{ tabla_urgentes }}
+      <p class="nota">En alta caducidad los ingredientes de la demostración ya caducaron; los urgentes son otros que el cierre de 2 días dejó a punto de vencer.</p>
+
+      <h3>Sensibilidad al supuesto de venta</h3>
+      <div class="prosa">
+        <p>
+          El modelo base supone que el menú del día se prepara sobre pedido. Para medir cuánto depende el
+          resultado de eso, corrimos una prueba más estricta: el menú del día se prepara completo, se vende
+          solo una parte de su demanda estimada y <strong>lo que sobra se tira</strong>. B tuvo menos merma
+          que A en {{ venta_100 }} corridas vendiendo el 100 %, en {{ venta_75 }} vendiendo el 75 % y en
+          {{ venta_50 }} vendiendo la mitad.
+        </p>
+      </div>
+      <p class="tabla-titulo"><strong>Tabla 3.</strong> Desperdicio evitado cuando el menú del día se prepara completo y los sobrantes se tiran, en 3 días. Bajo 0, B tira más que A.</p>
+      {{ tabla_sensibilidad }}
+      <figure class="figura-ancha">
+        <a href="resultados/sensibilidad_venta.png"><img src="resultados/sensibilidad_venta.png" alt="Gráfica de líneas del desperdicio evitado de cada escenario al vender el 100, el 75 y el 50 % del menú del día. Los valores están en la Tabla 3." loading="lazy"></a>
+        <figcaption><strong>Figura 3.</strong> Desperdicio evitado según la parte vendida del menú del día.</figcaption>
+      </figure>
+    </section>
+
+    <section id="conclusiones">
+      <h2>Comparación y conclusiones</h2>
+      <div class="dos-columnas">
+        <div class="prosa">
+          <h3>Menú fijo contra menú del día</h3>
+          <p>
+            Con los datos de prueba, <strong>el objetivo general se cumple</strong>: el menú del día redujo
+            la merma en {{ pares_b_menor }} de {{ pares }} parejas, del {{ evitado_prom_min }} % al
+            {{ evitado_prom_max }} % en promedio, y ahorró de {{ ahorro_min }} a {{ ahorro_max }} en
+            ingredientes en el horizonte simulado.
+          </p>
+          <p>La conclusión tiene dos condiciones:</p>
+          <ol>
+            <li><strong>El menú del día tiene que venderse.</strong> Si se prepara completo y se vende poco, puede tirar más de lo que rescata. Conviene prepararlo por tandas.</li>
+            <li><strong>Las cifras son de un puesto tipo con datos sintéticos</strong> y del voraz {{ voraz }}: muestran que el enfoque funciona, no son una medición en un negocio real.</li>
+          </ol>
+        </div>
+        <div class="prosa">
+          <h3>Limitaciones</h3>
+          <ul>
+            <li><strong>Demanda estimada</strong>: sale de la caracterización del negocio, no de ventas reales; la del menú del día es la más incierta.</li>
+            <li><strong>Sin reposición</strong>: el inventario inicial es todo lo que hay. Por eso el horizonte de 3 días, que coincide con el ciclo de compra, es el más representativo.</li>
+            <li><strong>Efecto secundario del v0</strong>: gasta todo lo disponible de un ingrediente, no solo lo que está en riesgo, y puede dejar sin ingredientes al menú fijo de los días siguientes (Tabla 4).</li>
+          </ul>
+        </div>
+      </div>
+      <p class="tabla-titulo"><strong>Tabla 4.</strong> Porciones del menú fijo no atendidas en 3 días.</p>
+      {{ tabla_no_atendidas }}
+
+      <div class="pendiente">
+        <p class="estado proceso">En desarrollo · <a href="{{ repo }}/issues/24">#24</a>, <a href="{{ repo }}/issues/27">#27</a>, <a href="{{ repo }}/issues/29">#29</a></p>
+        <h3>Voraz contra fuerza bruta</h3>
+        <p>
+          La comparación de calidad (qué tan cerca del óptimo queda el voraz) y de eficiencia (tiempo y
+          memoria con 20, 100, 500 y 1000 ingredientes) se agrega aquí cuando estén sus resultados.
+        </p>
+      </div>
+    </section>
+
+    <section id="enlaces">
+      <h2>Enlaces</h2>
+      <ul class="tarjetas tres enlaces">
+        <li class="tarjeta">
+          <h3><a href="{{ repo }}">Repositorio</a></h3>
+          <p>Código, datos de prueba, pruebas y documentación.</p>
+        </li>
+        <li class="tarjeta">
+          <h3><a href="https://github.com/orgs/StackUnderFlow-MenuCero/projects/1">Tablero del proyecto</a></h3>
+          <p>Issues, responsables y avance por milestone.</p>
+        </li>
+        <li class="tarjeta">
+          <h3><a href="{{ repo }}/releases">Versiones</a></h3>
+          <p>El prototipo corre en una computadora local. Aquí se publican sus versiones para descargarlas; la 1.0.0 sale con la entrega final.</p>
+        </li>
+        <li class="tarjeta">
+          <h3><a href="{{ repo }}/blob/main/docs/evaluacion.md">Análisis de la simulación</a></h3>
+          <p>El apartado de evaluación del reporte, con todas sus tablas.</p>
+        </li>
+        <li class="tarjeta">
+          <h3><a href="{{ repo }}/blob/main/docs/datos.md">Datos y caracterización</a></h3>
+          <p>Formato de los CSV y de dónde sale cada dato del negocio tipo.</p>
+        </li>
+        <li class="tarjeta">
+          <h3>Resultados en CSV</h3>
+          <p>
+            <a href="resultados/simulacion.csv" download>Corridas</a> ·
+            <a href="resultados/resumen.csv" download>Resumen</a> ·
+            <a href="resultados/sensibilidad_venta.csv" download>Sensibilidad</a>
+          </p>
+        </li>
+      </ul>
+      <h3>Correrlo en tu computadora</h3>
+      <pre><code>git clone {{ repo }}.git
+cd menu-cero
+uv sync
+uv run python prototipo/voraz_v0.py data/demo --hoy {{ demo_fecha }}   # menú del día de la demostración
+uv run python scripts/simular.py                                    # regenera resultados/</code></pre>
+    </section>
+
+    <section id="evidencias">
+      <h2>Evidencias del desarrollo</h2>
+      <ul class="cifras pequenas" aria-label="Conteos del repositorio">
+        <li><span class="cifra">{{ prs }}</span><span class="cifra-texto">pull requests unidos a <code>main</code></span></li>
+        <li><span class="cifra">{{ pruebas }}</span><span class="cifra-texto">pruebas automatizadas en cada cambio</span></li>
+        <li><span class="cifra">{{ cambios }}</span><span class="cifra-texto">cambios en el historial de <code>main</code></span></li>
+      </ul>
+      <div class="prosa">
+        <p>
+          Los cambios entran por pull request. La rama <code>main</code> está protegida: cada pull request
+          necesita la aprobación de otro integrante y la integración continua en verde
+          (<a href="{{ repo }}/actions">historial de GitHub Actions</a>). El avance se planeó por milestones
+          (<a href="{{ repo }}/milestones?state=all">M0 a M4</a>) y se revisa en los checkpoints del curso.
+        </p>
+      </div>
+      <p class="tabla-titulo"><strong>Historial de <code>main</code></strong>, del más reciente al más antiguo.</p>
+      {{ historial }}
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Menú Cero · StackUnderFlow · CUCEI, Universidad de Guadalajara</p>
+    <p>Página generada desde el commit <a href="{{ repo }}/commit/{{ commit }}"><code>{{ commit }}</code></a> del {{ fecha_commit }}. Las cifras salen de <code>resultados/</code>.</p>
+  </footer>
+</body>
+</html>
