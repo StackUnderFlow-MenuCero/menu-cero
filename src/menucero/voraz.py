@@ -10,8 +10,9 @@ from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
 from math import ceil, floor
+from time import perf_counter
 
-from menucero.modelos import Ingrediente, Receta
+from menucero.modelos import Ingrediente, MenuGenerado, Receta
 from menucero.prioridad import (
     dias_para_caducar,
     kg_en_riesgo,
@@ -219,3 +220,20 @@ def llenar(
                     break
 
     return porciones
+
+
+def generar_menu(
+    ingredientes: Iterable[Ingrediente] | Mapping[str, Ingrediente],
+    recetas: Iterable[Receta] | Mapping[str, Receta],
+    hoy: date,
+    variante: str = "base",
+    excluidas: Collection[str] = frozenset(),
+    permitidas: Collection[str] | None = None,
+) -> MenuGenerado:
+    """Genera una propuesta de menú del día midiendo su tiempo de ejecución (ms)."""
+    t0 = perf_counter()
+    estado = preparar(ingredientes, recetas, hoy)
+    porciones = llenar(estado, variante=variante, excluidas=excluidas, permitidas=permitidas)
+    valor = valor_objetivo(porciones, estado)
+    tiempo_ms = (perf_counter() - t0) * 1000.0
+    return MenuGenerado(variante=variante, porciones=porciones, valor=valor, tiempo_ms=tiempo_ms)
