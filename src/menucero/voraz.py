@@ -6,9 +6,10 @@ Implementación independiente de Pandas, Streamlit y de la fecha del sistema.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date
+from math import ceil, floor
 
 from menucero.modelos import Ingrediente, Receta
 from menucero.prioridad import (
@@ -124,3 +125,97 @@ def valor_objetivo(porciones: Mapping[str, int], estado: Estado) -> float:
         for ing_id, kg_usado in usado.items()
         if estado.riesgo.get(ing_id, 0.0) > EPS
     )
+
+
+def _puntaje_receta(receta: Receta, variante: str, estado: Estado) -> float:
+    """Calcula el puntaje de ordenamiento de ``receta`` según ``variante``."""
+    if variante == "base":
+        return sum(
+            estado.p[h] * kg
+            for h, kg in receta.ingredientes.items()
+            if estado.riesgo.get(h, 0.0) > EPS
+        )
+    raise NotImplementedError(f"variante pendiente de implementar: {variante!r}")
+
+
+def _porciones_posibles(
+    receta: Receta,
+    ing_id: str,
+    porciones: Mapping[str, int],
+    resto: Mapping[str, float],
+    pendiente: Mapping[str, float],
+) -> int:
+    """Porciones asignables respetando demanda, inventario y riesgo pendiente."""
+    q = receta.ingredientes
+    if not q or ing_id not in q:
+        return 0
+    tope_demanda = receta.demanda_menu_dia - porciones.get(receta.id, 0)
+    if tope_demanda <= 0:
+        return 0
+    tope_stock = min(floor(resto.get(h, 0.0) / kg + EPS) for h, kg in q.items())
+    if tope_stock <= 0:
+        return 0
+    necesarias = ceil(pendiente[ing_id] / q[ing_id] - EPS)
+    return max(0, min(tope_demanda, tope_stock, necesarias))
+
+
+def llenar(
+    estado: Estado,
+    variante: str = "base",
+    excluidas: Collection[str] = frozenset(),
+    permitidas: Collection[str] | None = None,
+) -> dict[str, int]:
+    """Asigna porciones de forma voraz en dos pasadas (``fijo`` y ``secundaria``).
+
+    Args:
+        estado: Estructura precalculada por ``preparar``.
+        variante: Nombre de la estrategia en ``VARIANTES``.
+        excluidas: Identificadores de recetas que no deben proponerse.
+        permitidas: Si no es ``None``, subconjunto exclusivo de recetas que
+            pueden considerarse (usado por ejemplo en búsqueda por subconjuntos).
+
+    Returns:
+        Diccionario ``{receta_id: porciones}`` solo con entradas ``>= 1``.
+    """
+    if variante not in VARIANTES:
+        raise ValueError(f"variante desconocida: {variante!r}; opciones: {VARIANTES}")
+
+    excluidas_set = excluidas if isinstance(excluidas, (set, frozenset)) else set(excluidas)
+    permitidas_set = (
+        None
+        if permitidas is None
+        else (permitidas if isinstance(permitidas, (set, frozenset)) else set(permitidas))
+    )
+
+    puntajes = {
+        rec_id: _puntaje_receta(rec, variante, estado) for rec_id, rec in estado.recetas.items()
+    }
+    resto = dict(estado.disponible)
+    pendiente = dict(estado.riesgo)
+    porciones: dict[str, int] = {}
+
+    for tipo in ("fijo", "secundaria"):
+        for ing_id in estado.orden:
+            if pendiente.get(ing_id, 0.0) <= EPS:
+                continue
+            candidatas = [
+                rec_id
+                for rec_id in estado.usa.get(ing_id, ())
+                if estado.recetas[rec_id].tipo == tipo
+                and rec_id not in excluidas_set
+                and (permitidas_set is None or rec_id in permitidas_set)
+            ]
+            candidatas.sort(key=lambda rec_id: (-puntajes[rec_id], rec_id))
+            for rec_id in candidatas:
+                receta = estado.recetas[rec_id]
+                x = _porciones_posibles(receta, ing_id, porciones, resto, pendiente)
+                if x >= 1:
+                    porciones[rec_id] = porciones.get(rec_id, 0) + x
+                    for h, kg in receta.ingredientes.items():
+                        resto[h] = max(0.0, resto.get(h, 0.0) - x * kg)
+                        if h in pendiente:
+                            pendiente[h] = max(0.0, pendiente[h] - x * kg)
+                if pendiente[ing_id] <= EPS:
+                    break
+
+    return porciones
