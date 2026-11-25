@@ -1,4 +1,4 @@
-"""Pruebas del algoritmo voraz principal (issue #20)."""
+"""Pruebas del algoritmo voraz principal y generación de propuestas (issues #20 y #23)."""
 
 import ast
 import csv
@@ -6,13 +6,23 @@ import random
 from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
+from time import perf_counter
 
 import pytest
 
 from menucero.modelos import Ingrediente, Receta
-from menucero.voraz import VARIANTES, generar_menu, llenar, preparar, valor_objetivo
+from menucero.voraz import (
+    VARIANTES,
+    generar_menu,
+    generar_propuestas,
+    llenar,
+    preparar,
+    valor_objetivo,
+)
 
-EJEMPLO = Path(__file__).resolve().parents[1] / "data" / "ejemplo"
+RAIZ = Path(__file__).resolve().parents[1]
+EJEMPLO = RAIZ / "data" / "ejemplo"
+DEMO = RAIZ / "data" / "demo"
 
 
 def _cargar_carpeta(carpeta: Path) -> tuple[list[Ingrediente], list[Receta]]:
@@ -415,3 +425,80 @@ def test_variante_eficiencia_cuida_inventario_sano(hoy):
     estado = preparar(ingredientes, recetas, hoy)
     assert llenar(estado, variante="base") == {"REC_PESADA": 7, "REC_LIGERA": 1}
     assert llenar(estado, variante="eficiencia") == {"REC_LIGERA": 10}
+
+
+def test_generar_propuestas_ejemplo_referencia_elimina_repetidas(ingredientes, recetas, hoy):
+    propuestas = generar_propuestas(ingredientes, recetas, hoy)
+
+    assert [p.variante for p in propuestas] == ["base", "sin_principal", "secundarias"]
+    assert propuestas[0].porciones == {"REC01": 12, "REC03": 10, "REC07": 10}
+    assert propuestas[0].valor == pytest.approx(1.51667, abs=1e-5)
+    assert propuestas[1].porciones == {"REC03": 10, "REC07": 10}
+    assert propuestas[1].valor == pytest.approx(0.96667, abs=1e-5)
+    assert propuestas[2].porciones == {"REC07": 10}
+    assert propuestas[2].valor == pytest.approx(0.51667, abs=1e-5)
+    assert all(p.tiempo_ms >= 0.0 for p in propuestas)
+
+
+def test_generar_propuestas_con_datos_ejemplo():
+    ingredientes, recetas = _cargar_carpeta(EJEMPLO)
+    propuestas = generar_propuestas(ingredientes, recetas, date(2026, 11, 17))
+
+    assert [p.variante for p in propuestas] == ["base", "sin_principal", "secundarias"]
+    assert [p.valor for p in propuestas] == pytest.approx([4.25455, 3.14455, 1.47455], abs=1e-5)
+    # Todas las propuestas devueltas deben ser distintas
+    llaves = {tuple(sorted(p.porciones.items())) for p in propuestas}
+    assert len(llaves) == len(propuestas) == 3
+
+
+def test_generar_propuestas_demo_cumple_restricciones_y_tiempo_menor_a_120_ms():
+    hoy_demo = date(2026, 11, 25)
+    ingredientes, recetas = _cargar_carpeta(DEMO)
+
+    # Calentamiento ligero + medición directa con perf_counter
+    generar_propuestas(ingredientes, recetas, hoy_demo)
+    t0 = perf_counter()
+    propuestas = generar_propuestas(ingredientes, recetas, hoy_demo)
+    elapsed_ms = (perf_counter() - t0) * 1000.0
+
+    assert 3 <= len(propuestas) <= 5
+    assert elapsed_ms < 120.0
+    assert propuestas[0].tiempo_ms < 120.0
+
+    # Orden descendente por valor y sin propuestas repetidas
+    valores = [p.valor for p in propuestas]
+    assert valores == sorted(valores, reverse=True)
+    llaves = {tuple(sorted(p.porciones.items())) for p in propuestas}
+    assert len(llaves) == len(propuestas)
+
+    # Todas las propuestas cumplen las restricciones de inventario, demanda y recetas
+    estado = preparar(ingredientes, recetas, hoy_demo)
+    recetas_por_id = {r.id: r for r in recetas}
+    for prop in propuestas:
+        usado: defaultdict[str, float] = defaultdict(float)
+        for rec_id, x in prop.porciones.items():
+            assert rec_id in recetas_por_id
+            assert 1 <= x <= recetas_por_id[rec_id].demanda_menu_dia
+            for ing_id, kg in recetas_por_id[rec_id].ingredientes.items():
+                usado[ing_id] += x * kg
+        for ing_id, kg_usado in usado.items():
+            assert kg_usado <= estado.disponible.get(ing_id, 0.0) + 1e-9
+
+
+def test_generar_propuestas_casos_pequenos_y_parametro_k(hoy):
+    # Con una sola receta posible, devuelve solo 1 propuesta sin fabricar duplicados
+    ing = [Ingrediente("ING01", "Crema", 1.0, hoy, 70.0)]
+    rec = [Receta("REC01", "Salsa", "fijo", {"ING01": 0.10}, demanda_fija=0, demanda_menu_dia=5)]
+    propuestas = generar_propuestas(ing, rec, hoy)
+    assert len(propuestas) == 1
+    assert propuestas[0].porciones == {"REC01": 5}
+
+    # Sin ingredientes en riesgo devuelve lista vacía
+    rec_sin_riesgo = [
+        Receta("REC01", "Salsa", "fijo", {"ING01": 0.50}, demanda_fija=2, demanda_menu_dia=5)
+    ]
+    assert generar_propuestas(ing, rec_sin_riesgo, hoy) == []
+
+    # k menor a 1 se rechaza con ValueError
+    with pytest.raises(ValueError, match="al menos 1"):
+        generar_propuestas(ing, rec, hoy, k=0)

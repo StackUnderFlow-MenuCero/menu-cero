@@ -259,3 +259,47 @@ def generar_menu(
     valor = valor_objetivo(porciones, estado)
     tiempo_ms = (perf_counter() - t0) * 1000.0
     return MenuGenerado(variante=variante, porciones=porciones, valor=valor, tiempo_ms=tiempo_ms)
+
+
+def generar_propuestas(
+    ingredientes: Iterable[Ingrediente] | Mapping[str, Ingrediente],
+    recetas: Iterable[Receta] | Mapping[str, Receta],
+    hoy: date,
+    k: int = 5,
+) -> list[MenuGenerado]:
+    """Genera hasta ``k`` propuestas distintas de menú del día ordenadas por ``V``.
+
+    Prepara el estado una sola vez, evalúa las variantes en ``VARIANTES[:k]``,
+    descarta propuestas vacías o con asignaciones de porciones repetidas y
+    asigna el tiempo total de generación (ms) a cada propuesta devuelta.
+    """
+    if k < 1:
+        raise ValueError(f"k debe ser al menos 1, no {k}")
+
+    t0 = perf_counter()
+    estado = preparar(ingredientes, recetas, hoy)
+
+    propuestas: list[MenuGenerado] = []
+    vistas: set[tuple[tuple[str, int], ...]] = set()
+    principal: str | None = None
+
+    for variante in VARIANTES[:k]:
+        excluidas: frozenset[str] = frozenset()
+        if variante == "sin_principal" and principal is not None:
+            excluidas = frozenset({principal})
+
+        porciones = llenar(estado, variante=variante, excluidas=excluidas)
+        if variante == "base" and porciones:
+            principal = max(porciones, key=lambda j: (porciones[j], j))
+
+        llave = tuple(sorted(porciones.items()))
+        if porciones and llave not in vistas:
+            vistas.add(llave)
+            valor = valor_objetivo(porciones, estado)
+            propuestas.append(MenuGenerado(variante=variante, porciones=porciones, valor=valor))
+
+    tiempo_ms = (perf_counter() - t0) * 1000.0
+    for propuesta in propuestas:
+        propuesta.tiempo_ms = tiempo_ms
+
+    return sorted(propuestas, key=lambda p: -p.valor)
