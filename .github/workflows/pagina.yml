@@ -1,0 +1,50 @@
+name: Página
+
+# Construye la página pública (#49) con scripts/pagina.py y la publica en
+# GitHub Pages cada vez que algo entra a main. Antes corre las pruebas: si los
+# resultados guardados no están al día, no se publica.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pagina
+  cancel-in-progress: false
+
+jobs:
+  construir:
+    name: construir
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # el historial completo va en la sección de evidencias
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Instalar dependencias
+        run: uv sync --locked
+      - name: Pruebas
+        run: uv run pytest
+      - name: Construir la página
+        run: uv run python scripts/pagina.py --salida _site
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  publicar:
+    name: publicar
+    needs: construir
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - id: despliegue
+        uses: actions/deploy-pages@v5
