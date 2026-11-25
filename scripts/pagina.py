@@ -6,6 +6,12 @@ resultado es un sitio estático que el workflow ``pagina.yml`` publica en GitHub
 Pages cada vez que algo entra a ``main``. Así, cuando se regeneran los
 resultados (por ejemplo, con el voraz principal), la página se actualiza sola.
 
+También arma ``simulador.html`` (#51): el catálogo de ``data/catalogo.json``,
+los restaurantes de ejemplo y ``py/menucero-web.zip``, que lleva ``src/menucero``,
+el prototipo v0 y ``scripts/simulador_web.py`` para correrlos en el navegador con
+Pyodide. Como el paquete se arma con lo que hay en ``main``, en cuanto entre el
+voraz principal (#20) el simulador lo usa.
+
 Uso, desde la raíz del repositorio::
 
     uv run python scripts/pagina.py                 # escribe _site/
@@ -21,25 +27,35 @@ from __future__ import annotations
 import argparse
 import csv
 import html
+import importlib.metadata
 import json
 import re
 import shutil
 import subprocess
 import sys
+import zipfile
 from collections.abc import Iterable, Sequence
 from datetime import date, timedelta
 from math import sqrt
 from pathlib import Path
 
+import simulador_web
 import simular
 from generar_demo import HOY_DEMO
-from menucero.simulacion import simular as simular_escenario
 from menucero.simulacion import voraz_por_omision
 
 RAIZ = simular.RAIZ
 PLANTILLA = RAIZ / "pagina" / "plantilla.html"
 ESTILO = RAIZ / "pagina" / "estilo.css"
 VISOR = RAIZ / "pagina" / "visor.js"
+SITIO_JS = RAIZ / "pagina" / "sitio.js"
+VISOR_HTML = RAIZ / "pagina" / "visor.html"
+SIMULADOR = RAIZ / "pagina" / "simulador.html"
+SIMULADOR_JS = RAIZ / "pagina" / "simulador.js"
+CATALOGO = RAIZ / "data" / "catalogo.json"
+PAQUETE = "py/menucero-web.zip"
+PYODIDE = "0.29.5"
+PYODIDE_PYTHON = "3.13"  # la de Pyodide 0.29, la misma del proyecto
 RESULTADOS = RAIZ / "resultados"
 DEMO = RAIZ / "data" / "demo"
 REPO = "https://github.com/StackUnderFlow-MenuCero/menu-cero"
@@ -50,8 +66,6 @@ MARCA = re.compile(r"\{\{\s*(\w+)\s*\}\}")
 PR = re.compile(r"\s*\(#(\d+)\)$")
 SEMILLA_VISOR = 1
 DIAS_VISOR = 7
-DIAS_SEMANA = ("lun", "mar", "mié", "jue", "vie", "sáb", "dom")
-MESES = ("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
 DESCRIPCIONES = {
     "normal": "Una semana de clases con la demanda estimada.",
     "examenes": "Semana de exámenes: la demanda baja al 80 %.",
@@ -345,32 +359,6 @@ def evidencias(pruebas: int | None) -> dict[str, str]:
 # --- visor día por día ---------------------------------------------------------
 
 
-def _fecha_corta(d: date) -> str:
-    return f"{DIAS_SEMANA[d.weekday()]} {d.day} {MESES[d.month - 1]}"
-
-
-def _dias(resultado, ids: list[str], inicial: list[float]) -> list[dict]:
-    """Cada día de una corrida con arreglos alineados a ``ids``."""
-    stock = list(inicial)
-    dias = []
-    for r in resultado.consumo_diario:
-        consumo = [r["consumo_kg"].get(i, 0.0) for i in ids]
-        merma = [r["merma_kg"].get(i, 0.0) for i in ids]
-        dias.append(
-            {
-                "stock": [round(kg, 3) for kg in stock],
-                "consumo": [round(kg, 3) for kg in consumo],
-                "merma": [round(kg, 3) for kg in merma],
-                "menu": resultado.menus[r["dia"] - 1] if resultado.menus else {},
-                "vendidas": r["porciones_menu_dia"],
-                "fijas": sum(r["porciones_fijas"].values()),
-                "no_atendidas": sum(r["no_atendidas"].values()),
-            }
-        )
-        stock = [max(0.0, s - c - m) for s, c, m in zip(stock, consumo, merma, strict=True)]
-    return dias
-
-
 def datos_visor(
     datos: Path = RAIZ / "data" / "escenarios",
     semilla: int = SEMILLA_VISOR,
@@ -386,36 +374,21 @@ def datos_visor(
     escenarios = []
     for escenario in simular.ESCENARIOS:
         ingredientes, recetas = simular.leer_escenario(datos / escenario, HOY_DEMO)
-        ids = [ing.id for ing in ingredientes]
-        inicial = [ing.cantidad_kg for ing in ingredientes]
-        comun = {"dias": dias, "semilla": semilla, "ruido": True}
-        a = simular_escenario(ingredientes, recetas, HOY_DEMO, escenario="A", **comun)
-        b = simular_escenario(
-            ingredientes, recetas, HOY_DEMO, escenario="B", generador=generador, **comun
+        corrida = simulador_web.escenario_visor(
+            ingredientes, recetas, HOY_DEMO, dias, semilla, True, generador
         )
         escenarios.append(
             {
                 "id": escenario,
                 "nombre": simular.NOMBRES[escenario],
                 "descripcion": DESCRIPCIONES[escenario],
-                "ingredientes": [
-                    {
-                        "nombre": ing.nombre,
-                        "costo": ing.costo_kg,
-                        # Día de la corrida (1 = el primero) en que caduca; ≤ 0 si ya caducó.
-                        "vence": (ing.fecha_caducidad - HOY_DEMO).days + 1,
-                    }
-                    for ing in ingredientes
-                ],
-                "recetas": {r.id: r.platillo for r in recetas},
-                "A": _dias(a, ids, inicial),
-                "B": _dias(b, ids, inicial),
+                **corrida,
             }
         )
     return {
         "semilla": semilla,
-        "voraz": simular.nombre_voraz(),
-        "fechas": [_fecha_corta(HOY_DEMO + timedelta(days=t)) for t in range(dias)],
+        "voraz": simulador_web.nombre_voraz(generador),
+        "fechas": [simulador_web.fecha_corta(HOY_DEMO + timedelta(days=t)) for t in range(dias)],
         "escenarios": escenarios,
     }
 
@@ -423,6 +396,57 @@ def datos_visor(
 def json_en_html(datos: dict) -> str:
     """JSON que se puede poner dentro de ``<script>`` sin cerrarlo antes de tiempo."""
     return json.dumps(datos, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+
+
+# --- simulador en el navegador (#51) ---------------------------------------------
+
+
+def catalogo() -> dict:
+    datos = json.loads(CATALOGO.read_text(encoding="utf-8"))
+    errores = simulador_web.errores_del_catalogo(datos)
+    if errores:
+        raise ValueError(f"{CATALOGO.name}: " + "; ".join(errores))
+    return datos
+
+
+def paquete_python(destino: Path) -> Path:
+    """Zip con lo que el simulador corre en Pyodide, con la estructura del repositorio.
+
+    Lleva todo ``src/menucero`` (así el voraz principal entra solo cuando exista),
+    ``prototipo/voraz_v0.py`` en la ruta que espera ``simulacion.py`` y el puente
+    ``scripts/simulador_web.py``. ``menucero/__init__.py`` lee su versión de los
+    metadatos del paquete, así que también van sus ``METADATA``.
+    """
+    version = importlib.metadata.version("menucero")
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(destino, "w", zipfile.ZIP_DEFLATED) as z:
+        paquete = RAIZ / "src" / "menucero"
+        for ruta in sorted(paquete.rglob("*.py")):
+            z.write(ruta, (Path("src") / ruta.relative_to(RAIZ / "src")).as_posix())
+        z.writestr(
+            f"src/menucero-{version}.dist-info/METADATA",
+            f"Metadata-Version: 2.1\nName: menucero\nVersion: {version}\n",
+        )
+        z.write(RAIZ / "prototipo" / "voraz_v0.py", "prototipo/voraz_v0.py")
+        z.write(RAIZ / "scripts" / "simulador_web.py", "scripts/simulador_web.py")
+    return destino
+
+
+def valores_simulador() -> dict[str, str]:
+    datos = catalogo()
+    return {
+        "visor": VISOR_HTML.read_text(encoding="utf-8"),
+        "catalogo": json_en_html(datos),
+        "ejemplos": json_en_html(simulador_web.restaurantes_ejemplo(datos)),
+        "paquete": PAQUETE,
+        "pyodide": PYODIDE,
+        "pyodide_python": PYODIDE_PYTHON,
+        "voraz": simulador_web.nombre_voraz(voraz_por_omision()),
+        "n_ingredientes": str(len(datos["ingredientes"])),
+        "n_recetas": str(sum(len(c["recetas"]) for c in datos["cocinas"].values())),
+        "n_cocinas": str(len(datos["cocinas"])),
+        "repo": REPO,
+    }
 
 
 # --- construcción --------------------------------------------------------------
@@ -442,6 +466,7 @@ def valores(resultados: Path = RESULTADOS, pruebas: int | None = None) -> dict[s
         **conteo_demo(),
         **evidencias(pruebas),
         "datos_visor": json_en_html(datos_visor()),
+        "visor": VISOR_HTML.read_text(encoding="utf-8"),
         "semilla_visor": str(SEMILLA_VISOR),
         "dias_visor": str(DIAS_VISOR),
     }
@@ -458,6 +483,11 @@ def construir(salida: Path, con_pruebas: bool = True) -> Path:
         shutil.copy2(RESULTADOS / nombre, salida / "resultados" / nombre)
     shutil.copy2(ESTILO, salida / "estilo.css")
     shutil.copy2(VISOR, salida / "visor.js")
+    shutil.copy2(SIMULADOR_JS, salida / "simulador.js")
+    shutil.copy2(SITIO_JS, salida / "sitio.js")
+    paquete_python(salida / PAQUETE)
+    simulador = llenar(SIMULADOR.read_text(encoding="utf-8"), valores_simulador())
+    (salida / "simulador.html").write_text(simulador, encoding="utf-8")
     (salida / ".nojekyll").touch()  # GitHub Pages sirve los archivos tal cual
     indice = salida / "index.html"
     indice.write_text(pagina, encoding="utf-8")

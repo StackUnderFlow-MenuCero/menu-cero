@@ -5,13 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Menú Cero · StackUnderFlow</title>
   <meta name="description" content="Menú Cero genera un menú del día que usa primero los ingredientes próximos a caducar. Problema, algoritmos, metodología, resultados y evidencias del proyecto.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@700;800&display=swap">
   <link rel="stylesheet" href="estilo.css">
 </head>
 <body>
   <a class="saltar" href="#contenido">Saltar al contenido</a>
 
   <nav class="barra" aria-label="Secciones">
-    <a class="marca" href="#">Menú Cero</a>
+    <a class="marca" href="#"><span class="marca-punto" aria-hidden="true"></span>Menú Cero</a>
     <ul>
       <li><a href="#problema">Problema</a></li>
       <li><a href="#equipo">Equipo</a></li>
@@ -23,9 +26,11 @@
       <li><a href="#enlaces">Enlaces</a></li>
       <li><a href="#evidencias">Evidencias</a></li>
     </ul>
+    <a class="boton oscuro" href="simulador.html">Simulador</a>
   </nav>
 
   <header class="portada">
+    <div class="brillo" aria-hidden="true"></div>
     <p class="antetitulo">Equipo StackUnderFlow · CUCEI, Universidad de Guadalajara</p>
     <h1>Menú Cero</h1>
     <p class="lema">Un menú del día que usa primero los ingredientes que están por caducar.</p>
@@ -34,6 +39,10 @@
       casi nadie pide. Menú Cero lee el inventario, las recetas y la demanda, y propone un menú del día
       que aprovecha esos ingredientes antes de que venzan. Lo comprobamos simulando el mismo negocio
       con y sin menú del día.
+    </p>
+    <p class="botones">
+      <a class="boton" href="#resultados" data-icono="arrow-right" data-icono-lado="fin">Ver los resultados</a>
+      <a class="boton secundario" href="{{ repo }}">Repositorio en GitHub</a>
     </p>
     <ul class="cifras" aria-label="Resultados principales">
       <li>
@@ -49,10 +58,6 @@
         <span class="cifra-texto">corridas simuladas en las que el menú del día dejó menos merma</span>
       </li>
     </ul>
-    <p class="botones">
-      <a class="boton" href="#resultados">Ver los resultados</a>
-      <a class="boton secundario" href="{{ repo }}">Repositorio en GitHub</a>
-    </p>
   </header>
 
   <main id="contenido">
@@ -243,70 +248,16 @@
           con lo que queda en el inventario ese día. Los dos atienden a los mismos clientes del menú fijo.
         </p>
       </div>
-
-      <div class="visor" id="visor" hidden>
-        <div class="visor-controles">
-          <div class="visor-escenarios segmentado" role="group" aria-label="Situación del puesto"></div>
-          <div class="visor-pasos">
-            <button type="button" class="visor-anterior" aria-label="Día anterior">←</button>
-            <p class="visor-dia" aria-live="off"></p>
-            <button type="button" class="visor-siguiente" aria-label="Día siguiente">→</button>
-            <button type="button" class="visor-reproducir boton-chico" aria-pressed="false">Reproducir</button>
-          </div>
-          <label class="visor-etiqueta-rango">
-            <span class="solo-lectores">Día de la simulación</span>
-            <input type="range" class="visor-rango" min="1" max="{{ dias_visor }}" step="1" value="1">
-          </label>
-        </div>
-        <p class="visor-descripcion nota"></p>
-
-        <ul class="cifras visor-cifras" aria-label="Acumulado hasta el día elegido">
-          <li>
-            <span class="cifra-titulo"><span class="muestra a" aria-hidden="true"></span>Merma acumulada en A</span>
-            <span class="cifra visor-a"></span>
-            <span class="cifra-texto visor-a-costo"></span>
-          </li>
-          <li>
-            <span class="cifra-titulo"><span class="muestra b" aria-hidden="true"></span>Merma acumulada en B</span>
-            <span class="cifra visor-b"></span>
-            <span class="cifra-texto visor-b-costo"></span>
-          </li>
-          <li>
-            <span class="cifra-titulo">Desperdicio evitado hasta hoy</span>
-            <span class="cifra visor-evitado"></span>
-            <span class="cifra-texto visor-ahorro"></span>
-          </li>
-        </ul>
-
-        <figure class="visor-figura">
-          <figcaption>
-            <strong>Merma acumulada, en kg.</strong>
-            <span class="leyenda"><span class="muestra a" aria-hidden="true"></span>A · solo menú fijo</span>
-            <span class="leyenda"><span class="muestra b" aria-hidden="true"></span>B · fijo + menú del día</span>
-          </figcaption>
-          <div class="visor-lienzo">
-            <div class="visor-grafica"></div>
-            <div class="visor-ayuda" role="tooltip" hidden></div>
-          </div>
-        </figure>
-
-        <div class="visor-paneles">
-          <div class="tarjeta">
-            <h3>Menú del día que propuso el voraz</h3>
-            <div class="visor-menu"></div>
-            <p class="nota visor-fijo"></p>
-          </div>
-          <div class="tarjeta">
-            <h3>Lo que se tiró este día</h3>
-            <div class="visor-merma"></div>
-          </div>
-        </div>
-
-        <h3>Ingredientes que vencen pronto</h3>
-        <p class="nota">Lo que hay al empezar el día de cada ingrediente que vence en los próximos 3 días.</p>
-        <div class="visor-por-vencer"></div>
-        <p class="visor-anuncio solo-lectores" aria-live="polite"></p>
+      <div class="llamado">
+        <p class="llamado-titulo">¿Y con otro restaurante?</p>
+        <p>
+          En el simulador eliges la cocina, los platillos y el inventario, y el mismo código de esta corrida
+          se ejecuta en tu navegador.
+        </p>
+        <a class="boton" href="simulador.html" data-icono="arrow-right" data-icono-lado="fin">Abrir el simulador</a>
       </div>
+
+      {{ visor }}
       <noscript><p class="nota">El visor necesita JavaScript. Los resultados de todas las corridas están en la sección siguiente.</p></noscript>
       <script id="datos-visor" type="application/json">{{ datos_visor }}</script>
       <script src="visor.js" defer></script>
@@ -469,9 +420,41 @@ uv run python scripts/simular.py                                    # regenera r
 
   </main>
 
-  <footer>
-    <p>Menú Cero · StackUnderFlow · CUCEI, Universidad de Guadalajara</p>
-    <p>Página generada desde el commit <a href="{{ repo }}/commit/{{ commit }}"><code>{{ commit }}</code></a> del {{ fecha_commit }}. Las cifras salen de <code>resultados/</code>.</p>
+  <footer class="pie">
+    <div class="pie-grid">
+      <div>
+        <p class="pie-marca">Menú Cero</p>
+        <p>Un menú del día que usa primero los ingredientes que están por caducar.</p>
+        <p>StackUnderFlow · CUCEI, Universidad de Guadalajara</p>
+      </div>
+      <div>
+        <p class="pie-titulo">Proyecto</p>
+        <ul>
+          <li><a href="#problema">Problema</a></li>
+          <li><a href="#metodologia">Metodología</a></li>
+          <li><a href="#resultados">Resultados</a></li>
+          <li><a href="#conclusiones">Conclusiones</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="pie-titulo">Probar</p>
+        <ul>
+          <li><a href="simulador.html">Simulador</a></li>
+          <li><a href="#dia-a-dia">Día por día</a></li>
+          <li><a href="resultados/simulacion.csv" download>Corridas en CSV</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="pie-titulo">Código</p>
+        <ul>
+          <li><a href="{{ repo }}">Repositorio</a></li>
+          <li><a href="https://github.com/orgs/StackUnderFlow-MenuCero/projects/1">Tablero</a></li>
+          <li><a href="{{ repo }}/actions">Integración continua</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="pie-base">Página generada desde el commit <a href="{{ repo }}/commit/{{ commit }}"><code>{{ commit }}</code></a> del {{ fecha_commit }}. Las cifras salen de <code>resultados/</code>.</p>
   </footer>
+  <script src="sitio.js" defer></script>
 </body>
 </html>

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulador · Menú Cero</title>
+  <meta name="description" content="Arma un restaurante con su cocina, platillos e inventario y simula día por día cuánto se tira con y sin menú del día.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@700;800&display=swap">
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <a class="saltar" href="#contenido">Saltar al contenido</a>
+
+  <nav class="barra" aria-label="Pasos del simulador">
+    <a class="marca" href="./"><span class="marca-punto" aria-hidden="true"></span>Menú Cero</a>
+    <ul>
+      <li><a href="#restaurante">Restaurante</a></li>
+      <li><a href="#platillos">Platillos</a></li>
+      <li><a href="#inventario">Inventario</a></li>
+      <li><a href="#simular">Simular</a></li>
+    </ul>
+    <a class="boton secundario" href="./#dia-a-dia" data-icono="arrow-left">Página del proyecto</a>
+  </nav>
+
+  <header class="portada portada-chica">
+    <div class="brillo" aria-hidden="true"></div>
+    <p class="antetitulo">Corre en tu navegador con Python</p>
+    <h1>Arma tu restaurante</h1>
+    <p class="lema">Elige la cocina, los platillos y el inventario, y mira día por día cuánto se tira.</p>
+    <p class="entrada">
+      <strong>A</strong> vende solo la carta fija. <strong>B</strong> también vende el menú del día que propone el
+      voraz con lo que queda en el inventario. Los dos atienden a los mismos clientes. La simulación la hace el
+      mismo código del repositorio, aquí en tu navegador. Tus restaurantes se guardan solo en este navegador.
+    </p>
+  </header>
+
+  <main id="contenido">
+    <section id="restaurante">
+      <span class="paso">Paso 1</span>
+      <h2>Restaurante</h2>
+      <p class="intro">Empieza con uno de los ejemplos o crea el tuyo. Cada restaurante guarda sus platillos e inventario.</p>
+      <div class="panel">
+        <div class="sim-fila">
+          <label class="campo campo-ancho">
+            <span>Restaurante</span>
+            <select id="sim-restaurantes"></select>
+          </label>
+          <div class="sim-acciones">
+            <button type="button" class="boton-chico" id="sim-nuevo" data-icono="plus">Nuevo</button>
+            <button type="button" class="boton-chico" id="sim-duplicar" data-icono="copy">Duplicar</button>
+            <button type="button" class="boton-chico peligro" id="sim-borrar" data-icono="trash-2">Borrar</button>
+            <button type="button" class="boton-chico" id="sim-restablecer" data-icono="rotate-ccw">Restablecer ejemplos</button>
+          </div>
+        </div>
+        <div class="sim-fila">
+          <label class="campo campo-ancho">
+            <span>Nombre</span>
+            <input type="text" id="sim-nombre" maxlength="60" autocomplete="off">
+          </label>
+          <label class="campo">
+            <span>Cocina</span>
+            <select id="sim-cocina"></select>
+          </label>
+        </div>
+        <p class="nota">Al cambiar la cocina se eligen todos sus platillos y se vacía el inventario, porque los ingredientes son otros.</p>
+      </div>
+    </section>
+
+    <section id="platillos">
+      <span class="paso">Paso 2</span>
+      <h2>Platillos</h2>
+      <p class="intro">
+        Solo aparecen los de la cocina elegida. <strong>Carta fija</strong>: se vende todos los días.
+        <strong>Solo menú del día</strong>: sale únicamente si el voraz lo propone.
+      </p>
+      <div class="panel">
+        <div class="sim-encabezado">
+          <p class="sim-resumen" id="sim-resumen-platillos"></p>
+          <div class="sim-acciones">
+            <button type="button" class="boton-chico" id="sim-todos" data-icono="check">Elegir todos</button>
+            <button type="button" class="boton-chico" id="sim-ninguno" data-icono="x">Quitar todos</button>
+          </div>
+        </div>
+        <div id="sim-platillos"></div>
+        <p class="nota">«Al día» es la demanda de la carta fija. «Menú del día» es cuántas porciones más se venderían si se promueve.</p>
+      </div>
+    </section>
+
+    <section id="inventario">
+      <span class="paso">Paso 3</span>
+      <h2>Inventario</h2>
+      <p class="intro">
+        Lo que hay hoy en el refrigerador. «Vence en» cuenta días desde hoy: 0 es el último día en que se puede usar.
+      </p>
+      <div class="panel">
+        <div class="sim-encabezado">
+          <p class="sim-resumen" id="sim-resumen-inventario"></p>
+          <div class="sim-acciones">
+            <button type="button" class="boton-chico" id="sim-aleatorizar" data-icono="shuffle">Aleatorizar</button>
+            <button type="button" class="boton-chico" id="sim-completar" data-icono="plus">Agregar lo que falta</button>
+            <button type="button" class="boton-chico peligro" id="sim-vaciar" data-icono="trash-2">Vaciar</button>
+          </div>
+        </div>
+        <form class="sim-fila" id="sim-agregar">
+          <label class="campo campo-ancho">
+            <span>Ingrediente del catálogo</span>
+            <input type="text" id="sim-ingrediente" list="sim-diccionario" autocomplete="off" placeholder="Escribe para buscar entre {{ n_ingredientes }} ingredientes" required>
+          </label>
+          <datalist id="sim-diccionario"></datalist>
+          <label class="campo campo-num">
+            <span>kg</span>
+            <input type="number" id="sim-kg" min="0.05" max="500" step="0.05" value="1" required>
+          </label>
+          <label class="campo campo-num">
+            <span>Vence en (días)</span>
+            <input type="number" id="sim-vence" min="0" max="60" step="1" value="3" required>
+          </label>
+          <button type="submit" class="boton" data-icono="plus">Agregar</button>
+        </form>
+        <p class="aviso" id="sim-mensaje" role="status" hidden></p>
+        <p class="aviso" id="sim-faltan" hidden></p>
+        <div id="sim-inventario"></div>
+      </div>
+    </section>
+
+    <section id="simular">
+      <span class="paso">Paso 4</span>
+      <h2>Simular</h2>
+      <p class="intro">Corre A y B con los mismos clientes y recorre el resultado día por día.</p>
+      <div class="panel">
+        <div class="sim-fila">
+          <label class="campo campo-num">
+            <span>Días</span>
+            <input type="number" id="sim-dias" min="1" max="14" step="1" value="7">
+          </label>
+          <label class="campo campo-num">
+            <span>Semilla</span>
+            <input type="number" id="sim-semilla" min="0" max="999999" step="1" value="1">
+          </label>
+          <label class="campo-casilla">
+            <input type="checkbox" id="sim-ruido" checked>
+            <span>Demanda con variación aleatoria</span>
+          </label>
+          <div class="sim-acciones">
+            <button type="button" class="boton" id="sim-simular" data-icono="play" disabled>Simular</button>
+            <button type="button" class="boton-chico" id="sim-csv" data-icono="download" disabled>Descargar en CSV</button>
+          </div>
+        </div>
+        <p class="estado-python" id="sim-estado" data-estado="cargando" role="status" aria-live="polite">Cargando Python en el navegador…</p>
+        <p class="error" id="sim-error" role="alert" hidden></p>
+      </div>
+
+      <div id="sim-resultado" hidden>
+        {{ visor }}
+      </div>
+
+      <div class="dos-columnas">
+        <div>
+          <h3>Cómo funciona</h3>
+          <ul class="sim-notas">
+            <li>
+              «Simular» corre A y B con <code>src/menucero/simulacion.py</code> y el voraz que haya en el repositorio:
+              hoy, el <strong>{{ voraz }}</strong>. Cuando el voraz principal (#20) esté listo, el simulador lo usa
+              sin cambiar esta página.
+            </li>
+            <li>
+              Los días se simulan seguidos y <strong>sin reposición</strong>, igual que las corridas de la página:
+              lo que se acaba ya no se vuelve a comprar.
+            </li>
+            <li>La semilla fija los clientes de cada día: la misma semilla da el mismo resultado.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>De dónde salen los datos</h3>
+          <ul class="sim-notas">
+            <li>
+              El catálogo tiene {{ n_ingredientes }} ingredientes y {{ n_recetas }} platillos de {{ n_cocinas }} cocinas
+              (<a href="{{ repo }}/blob/main/data/catalogo.json">data/catalogo.json</a>). Los del negocio tipo salen de
+              <a href="{{ repo }}/blob/main/docs/datos.md">docs/datos.md</a>; el resto son estimaciones del equipo.
+            </li>
+            <li>
+              «Descargar en CSV» guarda el restaurante en los tres archivos del formato oficial, para abrirlo en la
+              app del prototipo.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pie">
+    <div class="pie-grid">
+      <div>
+        <p class="pie-marca">Menú Cero</p>
+        <p>Un menú del día que usa primero los ingredientes que están por caducar.</p>
+        <p>StackUnderFlow · CUCEI, Universidad de Guadalajara</p>
+      </div>
+      <div>
+        <p class="pie-titulo">Proyecto</p>
+        <ul>
+          <li><a href="./">Página del proyecto</a></li>
+          <li><a href="./#resultados">Resultados</a></li>
+          <li><a href="./#dia-a-dia">Día por día</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="pie-titulo">Simulador</p>
+        <ul>
+          <li><a href="#restaurante">Restaurante</a></li>
+          <li><a href="#inventario">Inventario</a></li>
+          <li><a href="#simular">Simular</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="pie-titulo">Código</p>
+        <ul>
+          <li><a href="{{ repo }}">Repositorio</a></li>
+          <li><a href="{{ repo }}/issues/51">Issue #51</a></li>
+          <li><a href="{{ repo }}/blob/main/scripts/simulador_web.py">simulador_web.py</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="pie-base">Python {{ pyodide_python }} en el navegador con <a href="https://pyodide.org">Pyodide</a> {{ pyodide }}.</p>
+  </footer>
+
+  <noscript><p class="nota">El simulador necesita JavaScript.</p></noscript>
+  <script id="catalogo" type="application/json">{{ catalogo }}</script>
+  <script id="restaurantes-ejemplo" type="application/json">{{ ejemplos }}</script>
+  <script id="config-simulador" type="application/json">{"pyodide": "{{ pyodide }}", "paquete": "{{ paquete }}"}</script>
+  <script src="sitio.js" defer></script>
+  <script src="visor.js" defer></script>
+  <script src="simulador.js" defer></script>
+</body>
+</html>
