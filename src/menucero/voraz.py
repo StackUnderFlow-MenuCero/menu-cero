@@ -130,13 +130,29 @@ def valor_objetivo(porciones: Mapping[str, int], estado: Estado) -> float:
 
 def _puntaje_receta(receta: Receta, variante: str, estado: Estado) -> float:
     """Calcula el puntaje de ordenamiento de ``receta`` según ``variante``."""
-    if variante == "base":
+    if variante in ("base", "sin_principal", "secundarias"):
         return sum(
             estado.p[h] * kg
             for h, kg in receta.ingredientes.items()
             if estado.riesgo.get(h, 0.0) > EPS
         )
-    raise NotImplementedError(f"variante pendiente de implementar: {variante!r}")
+    if variante == "economica":
+        return sum(
+            estado.p[h] * kg * estado.ingredientes[h].costo_kg
+            for h, kg in receta.ingredientes.items()
+            if estado.riesgo.get(h, 0.0) > EPS
+        )
+    if variante == "eficiencia":
+        total_kg = sum(receta.ingredientes.values())
+        if total_kg <= EPS:
+            return 0.0
+        rescate = sum(
+            estado.p[h] * kg
+            for h, kg in receta.ingredientes.items()
+            if estado.riesgo.get(h, 0.0) > EPS
+        )
+        return rescate / total_kg
+    raise ValueError(f"variante desconocida: {variante!r}; opciones: {VARIANTES}")
 
 
 def _porciones_posibles(
@@ -195,7 +211,8 @@ def llenar(
     pendiente = dict(estado.riesgo)
     porciones: dict[str, int] = {}
 
-    for tipo in ("fijo", "secundaria"):
+    pasadas = ("secundaria",) if variante == "secundarias" else ("fijo", "secundaria")
+    for tipo in pasadas:
         for ing_id in estado.orden:
             if pendiente.get(ing_id, 0.0) <= EPS:
                 continue
@@ -233,6 +250,11 @@ def generar_menu(
     """Genera una propuesta de menú del día midiendo su tiempo de ejecución (ms)."""
     t0 = perf_counter()
     estado = preparar(ingredientes, recetas, hoy)
+    if variante == "sin_principal" and not excluidas:
+        porciones_base = llenar(estado, variante="base", permitidas=permitidas)
+        if porciones_base:
+            principal = max(porciones_base, key=lambda j: (porciones_base[j], j))
+            excluidas = frozenset({principal})
     porciones = llenar(estado, variante=variante, excluidas=excluidas, permitidas=permitidas)
     valor = valor_objetivo(porciones, estado)
     tiempo_ms = (perf_counter() - t0) * 1000.0

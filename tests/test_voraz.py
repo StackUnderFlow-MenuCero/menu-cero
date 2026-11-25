@@ -327,3 +327,91 @@ def test_voraz_no_usa_pandas_streamlit_ni_fecha_del_sistema():
     assert "streamlit" not in importados
     assert "today(" not in codigo
     assert "now(" not in codigo
+
+
+def test_variantes_secundarias_y_sin_principal_ejemplo_referencia(ingredientes, recetas, hoy):
+    menu_sec = generar_menu(ingredientes, recetas, hoy, variante="secundarias")
+    assert menu_sec.porciones == {"REC07": 10}
+    assert menu_sec.valor == pytest.approx(0.51667, abs=1e-5)
+
+    menu_sin = generar_menu(ingredientes, recetas, hoy, variante="sin_principal")
+    assert menu_sin.porciones == {"REC03": 10, "REC07": 10}
+    assert menu_sin.valor == pytest.approx(0.96667, abs=1e-5)
+
+
+def test_variante_economica_prioriza_rescate_de_mayor_costo(hoy):
+    # ING_BARATO vence hoy (p = 1.0, $20/kg) y va primero en estado.orden.
+    # ING_CARO vence mañana (p = 0.5, $200/kg). ING_LIM deja 0.9 kg disponibles (10 porciones).
+    # - REC_A: 0.12 kg de ING_BARATO -> base = 0.12, economica = 2.4
+    # - REC_B: 0.04 kg de ING_BARATO + 0.06 kg de ING_CARO -> base = 0.07, economica = 6.8
+    ingredientes = [
+        Ingrediente("ING_BARATO", "Verdura", 1.2, hoy, 20.0),
+        Ingrediente("ING_CARO", "Queso fino", 0.6, hoy + timedelta(days=1), 200.0),
+        Ingrediente("ING_LIM", "Tortilla", 1.0, hoy + timedelta(days=9), 25.0),
+    ]
+    recetas = [
+        Receta(
+            "REC_CARTA", "Taco fijo", "fijo", {"ING_LIM": 0.10}, demanda_fija=1, demanda_menu_dia=0
+        ),
+        Receta(
+            "REC_A",
+            "Guiso verdura",
+            "secundaria",
+            {"ING_BARATO": 0.12, "ING_LIM": 0.09},
+            demanda_fija=0,
+            demanda_menu_dia=10,
+        ),
+        Receta(
+            "REC_B",
+            "Quesadilla especial",
+            "secundaria",
+            {"ING_BARATO": 0.04, "ING_CARO": 0.06, "ING_LIM": 0.09},
+            demanda_fija=0,
+            demanda_menu_dia=10,
+        ),
+    ]
+
+    estado = preparar(ingredientes, recetas, hoy)
+    assert estado.orden[0] == "ING_BARATO"
+    assert llenar(estado, variante="base") == {"REC_A": 10}
+    assert llenar(estado, variante="economica") == {"REC_B": 10}
+
+
+def test_variante_eficiencia_cuida_inventario_sano(hoy):
+    # ING_RIESGO tiene 1.0 kg en riesgo (p = 1.0) e ING_SANO tiene 5.0 kg sin riesgo.
+    # - REC_PESADA: 0.12 kg en riesgo + 0.50 kg sanos (base = 0.12, eficiencia = 0.12 / 0.62)
+    # - REC_LIGERA: 0.10 kg en riesgo + 0.02 kg sanos (base = 0.10, eficiencia = 0.10 / 0.12)
+    ingredientes = [
+        Ingrediente("ING_RIESGO", "Crema", 1.0, hoy, 70.0),
+        Ingrediente("ING_SANO", "Pechuga", 5.0, hoy + timedelta(days=3), 120.0),
+    ]
+    recetas = [
+        Receta(
+            "REC_FIJA",
+            "Pollo carta",
+            "fijo",
+            {"ING_SANO": 1.25},
+            demanda_fija=1,
+            demanda_menu_dia=0,
+        ),
+        Receta(
+            "REC_PESADA",
+            "Plato abundante",
+            "secundaria",
+            {"ING_RIESGO": 0.12, "ING_SANO": 0.50},
+            demanda_fija=0,
+            demanda_menu_dia=10,
+        ),
+        Receta(
+            "REC_LIGERA",
+            "Salsa ligera",
+            "secundaria",
+            {"ING_RIESGO": 0.10, "ING_SANO": 0.02},
+            demanda_fija=0,
+            demanda_menu_dia=10,
+        ),
+    ]
+
+    estado = preparar(ingredientes, recetas, hoy)
+    assert llenar(estado, variante="base") == {"REC_PESADA": 7, "REC_LIGERA": 1}
+    assert llenar(estado, variante="eficiencia") == {"REC_LIGERA": 10}
