@@ -502,3 +502,14 @@ def test_generar_propuestas_casos_pequenos_y_parametro_k(hoy):
     # k menor a 1 se rechaza con ValueError
     with pytest.raises(ValueError, match="al menos 1"):
         generar_propuestas(ing, rec, hoy, k=0)
+
+
+def test_preparar_deduplica_entradas_con_mismo_id(ingredientes, recetas, hoy):
+    # Si se pasan listas con ids repetidos, no debe duplicar la reserva ni el índice usa
+    estado_limpio = preparar(ingredientes, recetas, hoy)
+    estado_dup = preparar([*ingredientes, ingredientes[0]], [*recetas, recetas[0]], hoy)
+
+    assert estado_dup.disponible == pytest.approx(estado_limpio.disponible)
+    assert estado_dup.riesgo == pytest.approx(estado_limpio.riesgo)
+    assert estado_dup.usa == estado_limpio.usa
+    assert llenar(estado_dup) == llenar(estado_limpio)

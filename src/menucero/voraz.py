@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Collection, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from math import ceil, floor
 from time import perf_counter
@@ -25,21 +25,24 @@ from menucero.prioridad import (
 EPS = 1e-9
 VARIANTES = ("base", "sin_principal", "economica", "eficiencia", "secundarias")
 
-
-def _iter_ingredientes(
-    ingredientes: Iterable[Ingrediente] | Mapping[str, Ingrediente],
-) -> Iterable[Ingrediente]:
-    if isinstance(ingredientes, Mapping):
-        return ingredientes.values()
-    return ingredientes
+# (tipo_receta -> (ingrediente_id -> tupla ordenada de receta_id viables))
+_CandidatasPorTipo = dict[str, dict[str, tuple[str, ...]]]
 
 
-def _iter_recetas(
-    recetas: Iterable[Receta] | Mapping[str, Receta],
-) -> Iterable[Receta]:
-    if isinstance(recetas, Mapping):
-        return recetas.values()
-    return recetas
+def _valores[T](coleccion: Iterable[T] | Mapping[str, T]) -> Iterable[T]:
+    if isinstance(coleccion, Mapping):
+        return coleccion.values()
+    return coleccion
+
+
+def _a_conjunto(items: Collection[str]) -> set[str] | frozenset[str]:
+    if isinstance(items, (set, frozenset)):
+        return items
+    return set(items)
+
+
+def _platillo_principal(porciones: Mapping[str, int]) -> str:
+    return max(porciones, key=lambda rec_id: (porciones[rec_id], rec_id))
 
 
 @dataclass(slots=True)
@@ -48,7 +51,7 @@ class Estado:
 
     Attributes:
         ingredientes: Ingredientes vigentes indexados por ``id``.
-        recetas: Recetas existentes indexadas por ``id``.
+        recetas: Recetas existentes indexados por ``id``.
         p: Prioridad ``1 / (d + 1)`` de cada ingrediente vigente.
         disponible: Existencia disponible hoy tras reservar el menú fijo (kg).
             Los ingredientes faltantes o caducados no aparecen (equivalen a 0 kg).
@@ -65,6 +68,9 @@ class Estado:
     riesgo: dict[str, float]
     usa: dict[str, list[str]]
     orden: list[str]
+    _candidatas_cache: dict[str, _CandidatasPorTipo] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
 
 
 def preparar(
@@ -74,15 +80,16 @@ def preparar(
 ) -> Estado:
     """Precalcula urgencias, inventario disponible, riesgo e índice invertido.
 
-    Separa y descarta los ingredientes ya caducados respecto de ``hoy`` y deja
-    lista la estructura ``Estado`` para ejecutar una o varias pasadas de llenado
-    sin repetir el preprocesamiento.
+    Separa y descarta los ingredientes ya caducados respecto de ``hoy``, deduplica
+    entradas por ``id`` y deja lista la estructura ``Estado`` para ejecutar una o
+    varias pasadas de llenado sin repetir el preprocesamiento.
     """
-    lista_recetas = list(_iter_recetas(recetas))
-    vigentes, _ = separar_caducados(_iter_ingredientes(ingredientes), hoy)
+    ing_unicos = list({ing.id: ing for ing in _valores(ingredientes)}.values())
+    rec_por_id = {rec.id: rec for rec in _valores(recetas)}
+    lista_recetas = list(rec_por_id.values())
 
+    vigentes, _ = separar_caducados(ing_unicos, hoy)
     ing_por_id = {ing.id: ing for ing in vigentes}
-    rec_por_id = {rec.id: rec for rec in lista_recetas}
 
     reserva = reserva_diaria(lista_recetas)
     riesgo = kg_en_riesgo(vigentes, lista_recetas, hoy)
@@ -113,46 +120,93 @@ def preparar(
 
 def valor_objetivo(porciones: Mapping[str, int], estado: Estado) -> float:
     """Evalúa ``V(x) = Σ_i p_i · min(usado_i, riesgo_i)`` para una asignación."""
-    usado: defaultdict[str, float] = defaultdict(float)
+    if not porciones:
+        return 0.0
+
+    recetas = estado.recetas
+    riesgo = estado.riesgo
+    prioridades = estado.p
+
+    usado: dict[str, float] = {}
     for rec_id, x in porciones.items():
         if x <= 0:
             continue
-        receta = estado.recetas[rec_id]
-        for ing_id, kg_por_porcion in receta.ingredientes.items():
-            usado[ing_id] += x * kg_por_porcion
+        for ing_id, kg_por_porcion in recetas[rec_id].ingredientes.items():
+            if riesgo.get(ing_id, 0.0) > EPS:
+                usado[ing_id] = usado.get(ing_id, 0.0) + x * kg_por_porcion
 
     return sum(
-        estado.p[ing_id] * min(kg_usado, estado.riesgo[ing_id])
+        prioridades[ing_id] * (kg_usado if kg_usado < riesgo[ing_id] else riesgo[ing_id])
         for ing_id, kg_usado in usado.items()
-        if estado.riesgo.get(ing_id, 0.0) > EPS
     )
 
 
-def _puntaje_receta(receta: Receta, variante: str, estado: Estado) -> float:
-    """Calcula el puntaje de ordenamiento de ``receta`` según ``variante``."""
+def _clave_criterio(variante: str) -> str:
     if variante in ("base", "sin_principal", "secundarias"):
-        return sum(
-            estado.p[h] * kg
-            for h, kg in receta.ingredientes.items()
-            if estado.riesgo.get(h, 0.0) > EPS
-        )
-    if variante == "economica":
-        return sum(
-            estado.p[h] * kg * estado.ingredientes[h].costo_kg
-            for h, kg in receta.ingredientes.items()
-            if estado.riesgo.get(h, 0.0) > EPS
-        )
-    if variante == "eficiencia":
-        total_kg = sum(receta.ingredientes.values())
-        if total_kg <= EPS:
-            return 0.0
-        rescate = sum(
-            estado.p[h] * kg
-            for h, kg in receta.ingredientes.items()
-            if estado.riesgo.get(h, 0.0) > EPS
-        )
-        return rescate / total_kg
+        return "base"
+    if variante in ("economica", "eficiencia"):
+        return variante
     raise ValueError(f"variante desconocida: {variante!r}; opciones: {VARIANTES}")
+
+
+def _puntaje_receta(receta: Receta, criterio: str, estado: Estado) -> float:
+    """Calcula el puntaje de ordenamiento de ``receta`` según ``criterio``."""
+    riesgo = estado.riesgo
+    prioridades = estado.p
+    if criterio == "base":
+        return sum(
+            prioridades[h] * kg for h, kg in receta.ingredientes.items() if riesgo.get(h, 0.0) > EPS
+        )
+    if criterio == "economica":
+        ingredientes = estado.ingredientes
+        return sum(
+            prioridades[h] * kg * ingredientes[h].costo_kg
+            for h, kg in receta.ingredientes.items()
+            if riesgo.get(h, 0.0) > EPS
+        )
+    total_kg = sum(receta.ingredientes.values())
+    if total_kg <= EPS:
+        return 0.0
+    rescate = sum(
+        prioridades[h] * kg for h, kg in receta.ingredientes.items() if riesgo.get(h, 0.0) > EPS
+    )
+    return rescate / total_kg
+
+
+def _es_receta_viable(receta: Receta, disponible: Mapping[str, float]) -> bool:
+    """Indica si ``receta`` puede preparar al menos 1 porción con el stock inicial."""
+    if receta.demanda_menu_dia <= 0 or not receta.ingredientes:
+        return False
+    return all(
+        floor(disponible.get(h, 0.0) / kg + EPS) >= 1 for h, kg in receta.ingredientes.items()
+    )
+
+
+def _obtener_candidatas_ordenadas(estado: Estado, variante: str) -> _CandidatasPorTipo:
+    """Obtiene (y cachea en ``estado``) las recetas viables ordenadas por ingrediente."""
+    criterio = _clave_criterio(variante)
+    cacheadas = estado._candidatas_cache.get(criterio)
+    if cacheadas is not None:
+        return cacheadas
+
+    disponible = estado.disponible
+    recetas = estado.recetas
+    viables = {rec_id for rec_id, rec in recetas.items() if _es_receta_viable(rec, disponible)}
+    puntajes = {rec_id: _puntaje_receta(recetas[rec_id], criterio, estado) for rec_id in viables}
+
+    por_tipo: _CandidatasPorTipo = {"fijo": {}, "secundaria": {}}
+    for ing_id in estado.orden:
+        por_receta_tipo: dict[str, list[str]] = {"fijo": [], "secundaria": []}
+        for rec_id in estado.usa.get(ing_id, ()):
+            if rec_id in viables:
+                por_receta_tipo[recetas[rec_id].tipo].append(rec_id)
+        for tipo, lista in por_receta_tipo.items():
+            if lista:
+                lista.sort(key=lambda r_id: (-puntajes[r_id], r_id))
+                por_tipo[tipo][ing_id] = tuple(lista)
+
+    estado._candidatas_cache[criterio] = por_tipo
+    return por_tipo
 
 
 def _porciones_posibles(
@@ -164,8 +218,6 @@ def _porciones_posibles(
 ) -> int:
     """Porciones asignables respetando demanda, inventario y riesgo pendiente."""
     q = receta.ingredientes
-    if not q or ing_id not in q:
-        return 0
     tope_demanda = receta.demanda_menu_dia - porciones.get(receta.id, 0)
     if tope_demanda <= 0:
         return 0
@@ -196,45 +248,46 @@ def llenar(
     """
     if variante not in VARIANTES:
         raise ValueError(f"variante desconocida: {variante!r}; opciones: {VARIANTES}")
+    if not estado.orden:
+        return {}
 
-    excluidas_set = excluidas if isinstance(excluidas, (set, frozenset)) else set(excluidas)
-    permitidas_set = (
-        None
-        if permitidas is None
-        else (permitidas if isinstance(permitidas, (set, frozenset)) else set(permitidas))
-    )
+    permitidas_set = None if permitidas is None else _a_conjunto(permitidas)
+    if permitidas_set is not None and not permitidas_set:
+        return {}
+    excluidas_set = _a_conjunto(excluidas) if excluidas else frozenset()
 
-    puntajes = {
-        rec_id: _puntaje_receta(rec, variante, estado) for rec_id, rec in estado.recetas.items()
-    }
+    candidatas_por_tipo = _obtener_candidatas_ordenadas(estado, variante)
+    recetas = estado.recetas
     resto = dict(estado.disponible)
     pendiente = dict(estado.riesgo)
     porciones: dict[str, int] = {}
 
     pasadas = ("secundaria",) if variante == "secundarias" else ("fijo", "secundaria")
     for tipo in pasadas:
+        mapa_tipo = candidatas_por_tipo[tipo]
+        if not mapa_tipo:
+            continue
         for ing_id in estado.orden:
-            if pendiente.get(ing_id, 0.0) <= EPS:
+            if pendiente[ing_id] <= EPS:
                 continue
-            candidatas = [
-                rec_id
-                for rec_id in estado.usa.get(ing_id, ())
-                if estado.recetas[rec_id].tipo == tipo
-                and rec_id not in excluidas_set
-                and (permitidas_set is None or rec_id in permitidas_set)
-            ]
-            candidatas.sort(key=lambda rec_id: (-puntajes[rec_id], rec_id))
+            candidatas = mapa_tipo.get(ing_id)
+            if not candidatas:
+                continue
             for rec_id in candidatas:
-                receta = estado.recetas[rec_id]
+                if excluidas_set and rec_id in excluidas_set:
+                    continue
+                if permitidas_set is not None and rec_id not in permitidas_set:
+                    continue
+                receta = recetas[rec_id]
                 x = _porciones_posibles(receta, ing_id, porciones, resto, pendiente)
                 if x >= 1:
                     porciones[rec_id] = porciones.get(rec_id, 0) + x
                     for h, kg in receta.ingredientes.items():
-                        resto[h] = max(0.0, resto.get(h, 0.0) - x * kg)
+                        resto[h] = max(0.0, resto[h] - x * kg)
                         if h in pendiente:
                             pendiente[h] = max(0.0, pendiente[h] - x * kg)
-                if pendiente[ing_id] <= EPS:
-                    break
+                    if pendiente[ing_id] <= EPS:
+                        break
 
     return porciones
 
@@ -253,8 +306,7 @@ def generar_menu(
     if variante == "sin_principal" and not excluidas:
         porciones_base = llenar(estado, variante="base", permitidas=permitidas)
         if porciones_base:
-            principal = max(porciones_base, key=lambda j: (porciones_base[j], j))
-            excluidas = frozenset({principal})
+            excluidas = frozenset({_platillo_principal(porciones_base)})
     porciones = llenar(estado, variante=variante, excluidas=excluidas, permitidas=permitidas)
     valor = valor_objetivo(porciones, estado)
     tiempo_ms = (perf_counter() - t0) * 1000.0
@@ -290,7 +342,7 @@ def generar_propuestas(
 
         porciones = llenar(estado, variante=variante, excluidas=excluidas)
         if variante == "base" and porciones:
-            principal = max(porciones, key=lambda j: (porciones[j], j))
+            principal = _platillo_principal(porciones)
 
         llave = tuple(sorted(porciones.items()))
         if porciones and llave not in vistas:
