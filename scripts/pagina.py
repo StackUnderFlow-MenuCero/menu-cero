@@ -9,8 +9,8 @@ resultados (por ejemplo, con el voraz principal), la página se actualiza sola.
 También arma ``simulador.html`` (#51): el catálogo de ``data/catalogo.json``,
 los restaurantes de ejemplo y ``py/menucero-web.zip``, que lleva ``src/menucero``,
 el prototipo v0 y ``scripts/simulador_web.py`` para correrlos en el navegador con
-Pyodide. Como el paquete se arma con lo que hay en ``main``, en cuanto entre el
-voraz principal (#20) el simulador lo usa.
+Pyodide. Como el paquete se arma con lo que hay en ``main``, el simulador usa
+el voraz que esté ahí (hoy, el principal de #20; el v0 queda de respaldo).
 
 Uso, desde la raíz del repositorio::
 
