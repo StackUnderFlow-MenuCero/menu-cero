@@ -13,14 +13,9 @@
 <body>
   <a class="saltar" href="#contenido">Saltar al contenido</a>
 
-  <nav class="barra" aria-label="Pasos del simulador">
+  <nav class="barra" aria-label="Menú Cero">
     <a class="marca" href="./"><span class="marca-punto" aria-hidden="true"></span>Menú Cero</a>
-    <ul>
-      <li><a href="#restaurante">Restaurante</a></li>
-      <li><a href="#platillos">Platillos</a></li>
-      <li><a href="#inventario">Inventario</a></li>
-      <li><a href="#simular">Simular</a></li>
-    </ul>
+    <p class="barra-progreso" id="sim-progreso" aria-hidden="true"></p>
     <a class="boton secundario" href="./#dia-a-dia" data-icono="arrow-left">Página del proyecto</a>
   </nav>
 
@@ -36,9 +31,18 @@
     </p>
   </header>
 
-  <main id="contenido">
-    <section id="restaurante">
-      <span class="paso">Paso 1</span>
+  <main id="contenido" class="asistente">
+    <nav class="guia" id="sim-guia" aria-label="Pasos del simulador" hidden>
+      <ol>
+        <li><a href="#restaurante"><span class="guia-num">1</span><span class="guia-texto">Restaurante</span></a></li>
+        <li><a href="#platillos"><span class="guia-num">2</span><span class="guia-texto">Platillos</span></a></li>
+        <li><a href="#inventario"><span class="guia-num">3</span><span class="guia-texto">Inventario</span></a></li>
+        <li><a href="#simular"><span class="guia-num">4</span><span class="guia-texto">Simular</span></a></li>
+        <li><a href="#resultado"><span class="guia-num">5</span><span class="guia-texto">Resultados</span></a></li>
+      </ol>
+    </nav>
+
+    <section id="restaurante" data-paso="1">
       <h2>Restaurante</h2>
       <p class="intro">Empieza con uno de los ejemplos o crea el tuyo. Cada restaurante guarda sus platillos e inventario.</p>
       <div class="panel">
@@ -66,10 +70,14 @@
         </div>
         <p class="nota">Al cambiar la cocina se eligen todos sus platillos y se vacía el inventario, porque los ingredientes son otros.</p>
       </div>
+      <p class="aviso sim-bloqueo" role="alert" hidden></p>
+      <div class="sim-navegacion" hidden>
+        <span></span>
+        <button type="button" class="boton" data-ir="siguiente" data-icono="arrow-right" data-icono-lado="fin">Siguiente: Platillos</button>
+      </div>
     </section>
 
-    <section id="platillos">
-      <span class="paso">Paso 2</span>
+    <section id="platillos" data-paso="2">
       <h2>Platillos</h2>
       <p class="intro">
         Solo aparecen los de la cocina elegida. <strong>Carta fija</strong>: se vende todos los días.
@@ -86,10 +94,14 @@
         <div id="sim-platillos"></div>
         <p class="nota">«Al día» es la demanda de la carta fija. «Menú del día» es cuántas porciones más se venderían si se promueve.</p>
       </div>
+      <p class="aviso sim-bloqueo" role="alert" hidden></p>
+      <div class="sim-navegacion" hidden>
+        <button type="button" class="boton secundario" data-ir="anterior" data-icono="arrow-left">Retroceder</button>
+        <button type="button" class="boton" data-ir="siguiente" data-icono="arrow-right" data-icono-lado="fin">Siguiente: Inventario</button>
+      </div>
     </section>
 
-    <section id="inventario">
-      <span class="paso">Paso 3</span>
+    <section id="inventario" data-paso="3">
       <h2>Inventario</h2>
       <p class="intro">
         Lo que hay hoy en el refrigerador. «Vence en» cuenta días desde hoy: 0 es el último día en que se puede usar.
@@ -123,12 +135,16 @@
         <p class="aviso" id="sim-faltan" hidden></p>
         <div id="sim-inventario"></div>
       </div>
+      <p class="aviso sim-bloqueo" role="alert" hidden></p>
+      <div class="sim-navegacion" hidden>
+        <button type="button" class="boton secundario" data-ir="anterior" data-icono="arrow-left">Retroceder</button>
+        <button type="button" class="boton" data-ir="siguiente" data-icono="arrow-right" data-icono-lado="fin">Siguiente: Simular</button>
+      </div>
     </section>
 
-    <section id="simular">
-      <span class="paso">Paso 4</span>
+    <section id="simular" data-paso="4">
       <h2>Simular</h2>
-      <p class="intro">Corre A y B con los mismos clientes y recorre el resultado día por día.</p>
+      <p class="intro">Elige cuántos días simular. «Simular» corre A y B con los mismos clientes y te lleva al resultado.</p>
       <div class="panel">
         <div class="sim-fila">
           <label class="campo campo-num">
@@ -144,7 +160,6 @@
             <span>Demanda con variación aleatoria</span>
           </label>
           <div class="sim-acciones">
-            <button type="button" class="boton" id="sim-simular" data-icono="play" disabled>Simular</button>
             <button type="button" class="boton-chico" id="sim-csv" data-icono="download" disabled>Descargar en CSV</button>
           </div>
         </div>
@@ -152,8 +167,9 @@
         <p class="error" id="sim-error" role="alert" hidden></p>
       </div>
 
-      <div id="sim-resultado" hidden>
-        {{ visor }}
+      <div class="sim-navegacion" hidden>
+        <button type="button" class="boton secundario" data-ir="anterior" data-icono="arrow-left">Retroceder</button>
+        <button type="button" class="boton" id="sim-simular" data-icono="play" disabled>Simular y ver resultados</button>
       </div>
 
       <div class="dos-columnas">
@@ -188,6 +204,22 @@
         </div>
       </div>
     </section>
+
+    <section id="resultado" data-paso="5">
+      <h2>Resultados</h2>
+      <p class="intro" id="sim-resumen-resultado">Todavía no hay resultados: arma el restaurante y pulsa «Simular».</p>
+      <p class="aviso" id="sim-desactualizado" hidden>
+        Cambiaste los datos después de simular. Retrocede al paso 4 y vuelve a simular para ver el resultado nuevo.
+      </p>
+      <div id="sim-resultado" hidden>
+        {{ visor }}
+      </div>
+      <p class="aviso sim-bloqueo" role="alert" hidden></p>
+      <div class="sim-navegacion" hidden>
+        <button type="button" class="boton secundario" data-ir="anterior" data-icono="arrow-left">Retroceder</button>
+        <button type="button" class="boton secundario" data-ir="inicio" data-icono="rotate-ccw">Volver al paso 1</button>
+      </div>
+    </section>
   </main>
 
   <footer class="pie">
@@ -211,6 +243,7 @@
           <li><a href="#restaurante">Restaurante</a></li>
           <li><a href="#inventario">Inventario</a></li>
           <li><a href="#simular">Simular</a></li>
+          <li><a href="#resultado">Resultados</a></li>
         </ul>
       </div>
       <div>

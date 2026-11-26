@@ -688,17 +688,6 @@ figcaption { color: var(--text-secondary); font-size: 14px; margin-top: 12px; }
 
 /* --- simulador (#51) ------------------------------------------------------------------------- */
 
-.paso {
-  display: block;
-  width: fit-content;
-  margin: 0 auto 12px;
-  padding: 4px 12px;
-  border-radius: var(--radius-pill);
-  background: var(--accent-light);
-  color: var(--accent-strong);
-  font-size: 13px;
-  font-weight: 600;
-}
 .intro { text-align: center; color: var(--text-secondary); max-width: 40rem; margin: calc(-1 * var(--s4)) auto var(--s4); }
 
 .panel {
@@ -775,6 +764,77 @@ select { appearance: none; padding-right: 36px; background-image: url("data:imag
 
 .sim-notas { padding-left: 1.2rem; }
 .sim-notas li { margin: 6px 0; }
+
+/* Asistente: un paso a la vez (simulador.js oculta los demás). */
+.barra-progreso { flex: 1; margin: 0; text-align: center; font-size: 14px; font-weight: 500; color: var(--text-muted); }
+.guia { padding: var(--s4) var(--gutter); border-top: 1px solid var(--border); background: var(--bg-page); }
+.guia[hidden] { display: none; }
+.guia ol {
+  display: flex;
+  justify-content: space-between;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+.guia li { flex: 1; display: flex; align-items: center; }
+.guia li + li::before {
+  content: "";
+  flex: 1;
+  height: 2px;
+  margin: 0 12px;
+  border-radius: 2px;
+  background: var(--border);
+}
+.guia li:has(a.hecho) + li::before { background: var(--accent); }
+.guia li:first-child { flex: 0 0 auto; }
+.guia a {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: var(--radius-pill);
+}
+.guia a:hover { color: var(--text-primary); }
+.guia-num {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--bg-page);
+  font-weight: 600;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.guia a.hecho .guia-num { background: var(--accent-light); border-color: var(--accent); color: var(--accent-strong); }
+.guia a[aria-current] { color: var(--text-primary); font-weight: 600; }
+.guia a[aria-current] .guia-num { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--accent-fg); }
+.guia a[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+.guia a[aria-disabled="true"]:hover { color: var(--text-secondary); }
+
+.asistente > section {
+  padding-top: var(--s6);
+  padding-bottom: var(--s6);
+  background-color: var(--bg-subtle);
+  background-image: var(--bg-pattern);
+}
+.asistente > section > h2:focus { outline: none; }
+.sim-navegacion {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s4);
+}
+.sim-navegacion[hidden] { display: none; }
+.sim-bloqueo { margin: var(--s3) 0 0; }
+#sim-desactualizado { max-width: 40rem; margin: 0 auto var(--s3); }
 #sim-inventario, #sim-platillos { margin-top: var(--s2); }
 #sim-resultado { margin-top: var(--s4); }
 #sim-resultado[hidden] { display: none; }
@@ -817,6 +877,12 @@ select { appearance: none; padding-right: 36px; background-image: url("data:imag
 }
 
 @media (max-width: 40rem) {
+  .barra-progreso { display: none; }
+  .barra .marca { margin-right: auto; }
+  .guia { padding-inline: 20px; }
+  .guia li + li::before { margin: 0 6px; }
+  .guia a:not([aria-current]) .guia-texto { display: none; }
+  .sim-navegacion .boton { padding: 10px 14px; font-size: 14px; }
   .barra { column-gap: 12px; padding-block: 10px; }
   .barra .boton { padding: 7px 12px; font-size: 13px; }
   main section { padding: var(--s6) 20px; }
