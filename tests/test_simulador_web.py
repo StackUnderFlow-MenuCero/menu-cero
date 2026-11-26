@@ -237,3 +237,23 @@ def test_la_vista_del_simulador_se_construye(tmp_path):
         assert json.loads(m.group(1)), id_
     assert 'id="visor"' in html
     assert 'href="simulador.html"' in (tmp_path / "index.html").read_text(encoding="utf-8")
+
+
+def test_el_simulador_va_por_pasos(tmp_path):
+    """Un paso a la vez: cinco secciones, cada una con «Retroceder» y/o «Siguiente»."""
+    pagina.construir(tmp_path, con_pruebas=False)
+    html = (tmp_path / "simulador.html").read_text(encoding="utf-8")
+    secciones = re.findall(r'<section id="([^"]+)" data-paso="(\d)">(.*?)</section>', html, re.S)
+    assert [(s[0], s[1]) for s in secciones] == [
+        ("restaurante", "1"),
+        ("platillos", "2"),
+        ("inventario", "3"),
+        ("simular", "4"),
+        ("resultado", "5"),
+    ]
+    for i, (id_, _, cuerpo) in enumerate(secciones):
+        assert 'class="sim-navegacion"' in cuerpo, id_
+        assert ('data-ir="anterior"' in cuerpo) == (i > 0), id_
+        assert f'href="#{id_}"' in html, id_  # la guía de pasos enlaza a cada uno
+    assert 'id="sim-simular"' in secciones[3][2]
+    assert 'id="visor"' in secciones[4][2]

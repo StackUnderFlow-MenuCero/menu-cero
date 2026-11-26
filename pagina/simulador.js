@@ -6,6 +6,11 @@
 // src/menucero, el prototipo v0 y scripts/simulador_web.py tal como están en el
 // repositorio, y le pasa peticiones JSON a simulador_web.ejecutar(). El resultado
 // se muestra con el mismo visor de la página principal (visor.js).
+//
+// La vista es un asistente: se ve un paso a la vez (restaurante, platillos,
+// inventario, simular y resultados) y se avanza con «Siguiente» y «Retroceder».
+// Cada paso tiene su ancla (#platillos, #resultado…), así que el botón «atrás» del
+// navegador y los enlaces directos también funcionan.
 
 (function () {
   "use strict";
@@ -435,6 +440,7 @@
   const resultado = $("#sim-resultado");
   const plantillaVisor = resultado.innerHTML;
   let visor = null;
+  let ultimo = null; // datos de la última simulación, para el paso 5
   let python = null;
   let vorazNombre = "";
 
@@ -450,10 +456,18 @@
     caja.textContent = texto;
   }
 
+  // Los errores de Python se muestran en el paso que está a la vista: en el 4, bajo
+  // el estado de Python; en los demás, sobre sus botones de navegación.
   function error(texto) {
-    const caja = $("#sim-error");
+    for (const caja of document.querySelectorAll("#sim-error, .sim-bloqueo")) {
+      caja.textContent = "";
+      caja.hidden = true;
+    }
+    if (!texto) return;
+    const seccion = secciones[pasoActual];
+    const caja = (seccion && seccion.querySelector(".sim-bloqueo")) || $("#sim-error");
     caja.textContent = texto;
-    caja.hidden = !texto;
+    caja.hidden = false;
   }
 
   function llamar(peticion) {
@@ -487,15 +501,21 @@
   function ocultarResultado() {
     if (visor) visor.destruir();
     visor = null;
+    ultimo = null;
     resultado.hidden = true;
+    $("#sim-desactualizado").hidden = true;
+    $("#sim-resumen-resultado").textContent = "Todavía no hay resultados: arma el restaurante y pulsa «Simular».";
     resultado.innerHTML = plantillaVisor;
     error("");
     mensaje("");
     if (python) estadoPython("listo", `Listo para simular con el ${vorazNombre}.`);
+    if (secciones.length) pintarGuia();
   }
 
   function cambiaron() {
-    if (visor && python) estadoPython("listo", "Cambiaste los datos: vuelve a simular para ver el resultado nuevo.");
+    if (!ultimo) return;
+    $("#sim-desactualizado").hidden = false;
+    if (python) estadoPython("listo", "Cambiaste los datos: vuelve a simular para ver el resultado nuevo.");
   }
 
   botonSimular.addEventListener("click", () => {
@@ -512,14 +532,16 @@
         return;
       }
       if (visor) visor.destruir();
+      ultimo = datos;
+      const listo = `${datos.fechas.length} días de A y B con el ${datos.voraz}, en ${numero(ms / 1000, 2)} s.`;
+      estadoPython("listo", `Listo: ${listo}`);
+      $("#sim-resumen-resultado").textContent = `${actual().nombre || "Sin nombre"}: ${listo}`;
+      $("#sim-desactualizado").hidden = true;
+      // Primero se muestra el paso 5: el visor mide el ancho de la gráfica al montarse.
+      irA(indiceDe("resultado"));
       resultado.innerHTML = plantillaVisor;
       resultado.hidden = false;
       visor = window.MenuCeroVisor.montar(resultado.querySelector(".visor"), datos);
-      estadoPython(
-        "listo",
-        `Listo: ${datos.fechas.length} días de A y B con el ${datos.voraz}, en ${numero(ms / 1000, 2)} s.`,
-      );
-      resultado.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 30);
   });
 
@@ -574,6 +596,101 @@
     botonAleatorizar.disabled = false;
     estadoPython("listo", `Listo para simular con el ${vorazNombre}.`);
   }
+
+  // --- pasos: uno a la vez, con «Retroceder» y «Siguiente» ---------------------------------------------
+
+  const secciones = [...document.querySelectorAll("main section[data-paso]")];
+  const guia = $("#sim-guia");
+  const enlacesGuia = [...guia.querySelectorAll("a[href^='#']")];
+  let pasoActual = -1;
+
+  const indiceDe = (id) => secciones.findIndex((s) => s.id === id);
+
+  // Lo que impide pasar al siguiente paso; vacío si se puede.
+  function faltaAlgo(i) {
+    const r = actual();
+    if (secciones[i].id === "platillos" && !Object.keys(r.platillos).length) {
+      return "Elige al menos un platillo para seguir.";
+    }
+    if (secciones[i].id === "inventario" && !r.inventario.length) {
+      return "Agrega al menos un ingrediente, o usa «Aleatorizar», para seguir.";
+    }
+    return "";
+  }
+
+  function pintarGuia() {
+    enlacesGuia.forEach((a, k) => {
+      if (k === pasoActual) a.setAttribute("aria-current", "step");
+      else a.removeAttribute("aria-current");
+      a.classList.toggle("hecho", k < pasoActual);
+      const bloqueado = secciones[k].id === "resultado" && !ultimo;
+      a.setAttribute("aria-disabled", String(bloqueado));
+      a.title = bloqueado ? "Primero simula en el paso 4" : "";
+    });
+    const titulo = secciones[pasoActual].querySelector("h2").textContent;
+    $("#sim-progreso").textContent = `Paso ${pasoActual + 1} de ${secciones.length} · ${titulo}`;
+  }
+
+  // Muestra el paso i (sin resultados, el 5 manda al 4) y devuelve el que quedó.
+  function mostrar(i, { mover = true } = {}) {
+    if (secciones[i].id === "resultado" && !ultimo) i = indiceDe("simular");
+    const cambio = i !== pasoActual;
+    pasoActual = i;
+    secciones.forEach((s, k) => {
+      s.hidden = k !== i;
+    });
+    error("");
+    pintarGuia();
+    if (cambio && mover) {
+      guia.scrollIntoView({ block: "start" });
+      secciones[i].querySelector("h2").focus({ preventScroll: true });
+    }
+    // Si el visor se dibujó mientras estaba oculto, vuelve a medir la gráfica.
+    if (cambio && secciones[i].id === "resultado") window.dispatchEvent(new Event("resize"));
+    return i;
+  }
+
+  function irA(i) {
+    const quedo = mostrar(Math.min(secciones.length - 1, Math.max(0, i)));
+    const ancla = "#" + secciones[quedo].id;
+    if (location.hash !== ancla) history.pushState(null, "", ancla);
+  }
+
+  function sincronizar(opciones) {
+    const quedo = mostrar(Math.max(0, indiceDe(decodeURIComponent(location.hash.slice(1)))), opciones);
+    const ancla = "#" + secciones[quedo].id;
+    if (location.hash && location.hash !== ancla) history.replaceState(null, "", ancla);
+  }
+
+  guia.addEventListener("click", (e) => {
+    const a = e.target.closest("a[href^='#']");
+    if (!a) return;
+    e.preventDefault();
+    if (a.getAttribute("aria-disabled") === "true") return;
+    irA(enlacesGuia.indexOf(a));
+  });
+
+  for (const nav of document.querySelectorAll(".sim-navegacion")) {
+    nav.addEventListener("click", (e) => {
+      const boton = e.target.closest("[data-ir]");
+      if (!boton) return;
+      const i = secciones.indexOf(boton.closest("section[data-paso]"));
+      if (boton.dataset.ir === "anterior") irA(i - 1);
+      else if (boton.dataset.ir === "inicio") irA(0);
+      else if (boton.dataset.ir === "siguiente") {
+        const falta = faltaAlgo(i);
+        if (falta) error(falta);
+        else irA(i + 1);
+      }
+    });
+    nav.hidden = false;
+  }
+
+  for (const s of secciones) s.querySelector("h2").tabIndex = -1;
+  window.addEventListener("popstate", () => sincronizar());
+  window.addEventListener("hashchange", () => sincronizar());
+  guia.hidden = false;
+  sincronizar({ mover: false });
 
   // --- arranque -------------------------------------------------------------------------------------
 
