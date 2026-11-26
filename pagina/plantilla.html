@@ -152,7 +152,7 @@
             <li>Recorre las recetas de mayor a menor puntaje.</li>
             <li>A cada una le asigna todas las porciones posibles sin pasar su demanda ni el inventario.</li>
           </ol>
-          <p>Es el voraz que usan los resultados de esta página.</p>
+          <p>Sirvió de base para el voraz principal; los resultados se comparan con él en <a href="{{ repo }}/blob/main/docs/evaluacion.md">docs/evaluacion.md</a>.</p>
         </li>
         <li class="tarjeta">
           <p class="estado hecho">Implementado</p>
@@ -165,14 +165,15 @@
           </ol>
         </li>
         <li class="tarjeta">
-          <p class="estado proceso">En desarrollo · <a href="{{ repo }}/issues/20">#20</a>, <a href="{{ repo }}/issues/23">#23</a></p>
+          <p class="estado hecho">Implementado · <a href="{{ repo }}/issues/20">#20</a>, <a href="{{ repo }}/issues/23">#23</a></p>
           <h3>Voraz principal</h3>
-          <p>Mejora tres cosas del v0:</p>
+          <p>En <code>src/menucero/voraz.py</code>. Mejora tres cosas del v0:</p>
           <ul>
             <li>recorre primero los ingredientes más urgentes;</li>
             <li>no prepara más porciones de las necesarias para salvar un ingrediente;</li>
             <li>genera de 3 a 5 propuestas distintas.</li>
           </ul>
+          <p>Es el voraz que usan los resultados de esta página y el simulador.</p>
         </li>
         <li class="tarjeta">
           <p class="estado proceso">En desarrollo · <a href="{{ repo }}/issues/24">#24</a>, <a href="{{ repo }}/issues/29">#29</a></p>
@@ -342,7 +343,7 @@
           <ul>
             <li><strong>Demanda estimada</strong>: sale de la caracterización del negocio, no de ventas reales; la del menú del día es la más incierta.</li>
             <li><strong>Sin reposición</strong>: el inventario inicial es todo lo que hay. Por eso el horizonte de 3 días, que coincide con el ciclo de compra, es el más representativo.</li>
-            <li><strong>Efecto secundario del v0</strong>: gasta todo lo disponible de un ingrediente, no solo lo que está en riesgo, y puede dejar sin ingredientes al menú fijo de los días siguientes (Tabla 4).</li>
+            <li><strong>Efecto secundario en el menú fijo</strong>: el voraz solo reserva lo que el menú fijo necesita hoy, así que el menú del día puede dejarlo sin ingredientes los días siguientes (Tabla 4). Con el voraz principal bajó en exámenes, pero no desapareció.</li>
           </ul>
         </div>
       </div>
