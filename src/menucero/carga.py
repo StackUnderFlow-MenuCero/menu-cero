@@ -252,7 +252,15 @@ def cargar_datos(
                     )
                 )
 
-            if ing_id and nombre and cant is not None and cad is not None and costo is not None:
+            if (
+                ing_id
+                and nombre
+                and cant is not None
+                and cant >= 0
+                and cad is not None
+                and costo is not None
+                and costo >= 0
+            ):
                 ingredientes_raw.append((fila_n, Ingrediente(ing_id, nombre, cant, cad, costo)))
 
     recetas_meta: dict[str, tuple[str, str, int]] = {}
@@ -433,14 +441,15 @@ def cargar_datos(
     recetas_finales: list[Receta] = []
     for rec_id, (platillo, tipo, _) in recetas_meta.items():
         d_fija, d_menu = demandas_map.get(rec_id, (0, 0))
+        ings_validos = {k: v for k, v in recetas_ings.get(rec_id, {}).items() if v > 0}
         recetas_finales.append(
             Receta(
                 id=rec_id,
                 platillo=platillo,
                 tipo=tipo,
-                ingredientes=recetas_ings.get(rec_id, {}),
-                demanda_fija=d_fija,
-                demanda_menu_dia=d_menu,
+                ingredientes=ings_validos,
+                demanda_fija=max(0, d_fija),
+                demanda_menu_dia=max(0, d_menu),
             )
         )
 
