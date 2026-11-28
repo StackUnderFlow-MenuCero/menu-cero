@@ -176,13 +176,14 @@
           <p>Es el voraz que usan los resultados de esta página y el simulador.</p>
         </li>
         <li class="tarjeta">
-          <p class="estado proceso">En desarrollo · <a href="{{ repo }}/issues/24">#24</a>, <a href="{{ repo }}/issues/29">#29</a></p>
+          {{ fb_estado }}
           <h3>Fuerza bruta y complejidad</h3>
           <p>
             Prueba todas las combinaciones con pocas recetas (hasta 20) para medir qué tan lejos queda el
             voraz del óptimo. Junto con el análisis de complejidad, justifica por qué el voraz es la
             estrategia pertinente para este problema.
           </p>
+          <p>Sus resultados están en <a href="#fuerza-bruta">Voraz contra fuerza bruta</a>.</p>
         </li>
       </ul>
     </section>
@@ -350,14 +351,16 @@
       <p class="tabla-titulo"><strong>Tabla 4.</strong> Porciones del menú fijo no atendidas en 3 días.</p>
       {{ tabla_no_atendidas }}
 
-      <div class="pendiente">
-        <p class="estado proceso">En desarrollo · <a href="{{ repo }}/issues/24">#24</a>, <a href="{{ repo }}/issues/27">#27</a>, <a href="{{ repo }}/issues/29">#29</a></p>
-        <h3>Voraz contra fuerza bruta</h3>
+      <h3 id="fuerza-bruta">Voraz contra fuerza bruta</h3>
+      <div class="prosa">
         <p>
-          La comparación de calidad (qué tan cerca del óptimo queda el voraz) y de eficiencia (tiempo y
-          memoria con 20, 100, 500 y 1000 ingredientes) se agrega aquí cuando estén sus resultados.
+          El voraz no garantiza el mejor menú posible. La fuerza bruta sí: prueba los 2<sup><var>m</var></sup>
+          subconjuntos de recetas con la misma regla de llenado y el mismo valor <var>V</var>. Por eso sirve
+          para medir dos cosas: qué tan cerca del óptimo queda el voraz y cuánto más rápido es.
         </p>
       </div>
+      {{ fb_calidad }}
+      {{ fb_eficiencia }}
     </section>
 
     <section id="enlaces">
@@ -388,7 +391,7 @@
           <p>
             <a href="resultados/simulacion.csv" download>Corridas</a> ·
             <a href="resultados/resumen.csv" download>Resumen</a> ·
-            <a href="resultados/sensibilidad_venta.csv" download>Sensibilidad</a>
+            <a href="resultados/sensibilidad_venta.csv" download>Sensibilidad</a>{{ descargas_fb }}
           </p>
         </li>
       </ul>

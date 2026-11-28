@@ -17,6 +17,11 @@ Uso, desde la raíz del repositorio::
     uv run python scripts/pagina.py                 # escribe _site/
     uv run python -m http.server -d _site 8000      # http://localhost:8000
 
+La comparación contra la fuerza bruta (#24, #27) se arma con
+``resultados/calidad.csv`` y ``resultados/benchmark.csv`` en cuanto existan;
+mientras no estén, la página dice que está en desarrollo. Su formato está en
+``docs/formato_resultados.md``.
+
 Los textos están en ``pagina/plantilla.html``. Cada ``{{ nombre }}`` se
 reemplaza con un valor calculado aquí; si la plantilla usa un nombre que no
 existe, la construcción falla en lugar de publicar la marca sin llenar.
@@ -72,6 +77,65 @@ DESCRIPCIONES = {
     "vacaciones": "Vacaciones: la demanda baja al 25 % con el mismo inventario.",
     "alta_caducidad": "Regreso de un puente: varios ingredientes ya caducaron o están por caducar.",
 }
+
+# Voraz contra fuerza bruta: el formato está en docs/formato_resultados.md.
+CALIDAD = "calidad.csv"  # #24
+BENCHMARK = "benchmark.csv"  # #27
+COLUMNAS_CALIDAD = (
+    "instancia",
+    "semilla",
+    "n",
+    "m",
+    "valor_voraz",
+    "valor_optimo",
+    "tiempo_voraz_ms",
+    "tiempo_fuerza_bruta_ms",
+)
+COLUMNAS_BENCHMARK = (
+    "algoritmo",
+    "n",
+    "m",
+    "mediana_ms",
+    "p25_ms",
+    "p75_ms",
+    "pico_kib",
+    "extrapolado",
+    "cpu",
+    "python",
+)
+ALGORITMOS = ("voraz", "fuerza_bruta")
+FIGURAS_FB = {  # nombre: (texto alternativo, pie de figura)
+    "tiempo_vs_n.png": (
+        "Gráfica del tiempo del voraz según el número de ingredientes, con la curva n log n de "
+        "referencia. Los valores están en la Tabla 6.",
+        "Tiempo del voraz contra el número de ingredientes, con la curva <var>n</var> log "
+        "<var>n</var> de referencia.",
+    ),
+    "ram_vs_n.png": (
+        "Gráfica del pico de memoria del voraz según el número de ingredientes. Los valores están "
+        "en la Tabla 6.",
+        "Pico de memoria del voraz contra el número de ingredientes.",
+    ),
+    "voraz_vs_fuerza_bruta.png": (
+        "Gráfica en escala logarítmica del tiempo del voraz y de la fuerza bruta según el número "
+        "de recetas. Los valores están en la Tabla 7.",
+        "Tiempo del voraz y de la fuerza bruta, en escala logarítmica.",
+    ),
+}
+FB_CALIDAD = RAIZ / "pagina" / "fuerza_bruta_calidad.html"
+FB_EFICIENCIA = RAIZ / "pagina" / "fuerza_bruta_eficiencia.html"
+FB_PENDIENTE_CALIDAD = """<div class="pendiente">
+        <p class="estado proceso">En desarrollo · <a href="{{ repo }}/issues/24">#24</a></p>
+        <h4>Calidad</h4>
+        <p>Qué tan cerca del óptimo queda el voraz en instancias pequeñas.
+        Se agrega aquí cuando estén sus resultados.</p>
+      </div>"""
+FB_PENDIENTE_EFICIENCIA = """<div class="pendiente">
+        <p class="estado proceso">En desarrollo · <a href="{{ repo }}/issues/27">#27</a></p>
+        <h4>Eficiencia</h4>
+        <p>Tiempo y memoria con 20, 100, 500 y 1000 ingredientes.
+        Se agrega aquí cuando estén sus resultados.</p>
+      </div>"""
 
 
 def leer(ruta: Path) -> list[dict[str, str]]:
@@ -278,6 +342,323 @@ def conteo_demo(carpeta: Path = DEMO, hoy: date = HOY_DEMO) -> dict[str, str]:
     }
 
 
+# --- voraz contra fuerza bruta (#24, #27) --------------------------------------
+
+
+def _numero(fila: dict, columna: str, archivo: str, k: int) -> float:
+    try:
+        return float(fila[columna])
+    except ValueError:
+        # La fila 1 es el encabezado, como en una hoja de cálculo.
+        raise ValueError(
+            f"{archivo}, fila {k + 2}, columna {columna}: no es un número («{fila[columna]}»)"
+        ) from None
+
+
+def leer_opcional(ruta: Path, columnas: Sequence[str]) -> list[dict] | None:
+    """Filas de un CSV que puede no existir todavía; falla si le faltan columnas."""
+    if not ruta.is_file():
+        return None
+    filas = leer(ruta)
+    if not filas:
+        raise ValueError(f"{ruta.name}: no tiene filas")
+    faltan = [c for c in columnas if c not in filas[0]]
+    if faltan:
+        raise ValueError(f"{ruta.name}: faltan las columnas {', '.join(faltan)}")
+    return filas
+
+
+def duracion(ms: float) -> str:
+    """Tiempo en la unidad que se lee mejor, de milisegundos a años."""
+    s = ms / 1000
+    if ms < 1:
+        return f"{num(ms, 3)} ms"
+    if ms < 1000:
+        return f"{num(ms, 1)} ms"
+    if s < 60:
+        return f"{num(s, 1)} s"
+    if s < 3600:
+        return f"{num(s / 60, 1)} min"
+    if s < 86_400:
+        return f"{num(s / 3600, 1)} h"
+    dias = s / 86_400
+    if dias < 365:
+        return f"{num(dias, 0)} días"
+    anios = dias / 365.25
+    if anios < 1e6:
+        return f"{num(anios, 0)} años"
+    mantisa, exponente = f"{anios:.1e}".split("e")
+    return f"{mantisa} × 10<sup>{int(exponente)}</sup> años"
+
+
+def _mediana(xs: Sequence[float]) -> float:
+    xs = sorted(xs)
+    mitad = len(xs) // 2
+    return xs[mitad] if len(xs) % 2 else (xs[mitad - 1] + xs[mitad]) / 2
+
+
+def calidad(filas: list[dict]) -> list[dict]:
+    """Cada instancia con su cociente V_voraz / V_óptimo; valida que el voraz no gane."""
+    instancias = []
+    for k, f in enumerate(filas):
+        voraz = _numero(f, "valor_voraz", CALIDAD, k)
+        optimo = _numero(f, "valor_optimo", CALIDAD, k)
+        if voraz > optimo + 1e-6:
+            raise ValueError(
+                f"{CALIDAD}, fila {k + 2}: el voraz ({voraz}) supera al óptimo ({optimo}); "
+                "la fuerza bruta debe usar la misma regla de llenado y la misma V"
+            )
+        instancias.append(
+            {
+                "m": int(_numero(f, "m", CALIDAD, k)),
+                "cociente": 1.0 if optimo <= 1e-12 else voraz / optimo,
+                "voraz_ms": _numero(f, "tiempo_voraz_ms", CALIDAD, k),
+                "fuerza_bruta_ms": _numero(f, "tiempo_fuerza_bruta_ms", CALIDAD, k),
+            }
+        )
+    return instancias
+
+
+def _es_optimo(instancia: dict) -> bool:
+    return instancia["cociente"] >= 1 - 1e-9
+
+
+def tabla_calidad(instancias: list[dict]) -> str:
+    filas = []
+    for m in sorted({i["m"] for i in instancias}):
+        grupo = [i for i in instancias if i["m"] == m]
+        cocientes = [i["cociente"] for i in grupo]
+        filas.append(
+            [
+                str(m),
+                str(len(grupo)),
+                f"{sum(map(_es_optimo, grupo))} de {len(grupo)}",
+                num(100 * sum(cocientes) / len(cocientes)),
+                num(100 * min(cocientes)),
+                duracion(_mediana([i["voraz_ms"] for i in grupo])),
+                duracion(_mediana([i["fuerza_bruta_ms"] for i in grupo])),
+            ]
+        )
+    columnas = [
+        "Recetas (m)",
+        "Instancias",
+        "Voraz = óptimo",
+        "Promedio (%)",
+        "Peor caso (%)",
+        "Voraz",
+        "Fuerza bruta",
+    ]
+    return tabla(columnas, filas, numericas=6)
+
+
+def cifras_calidad(instancias: list[dict]) -> dict[str, str]:
+    cocientes = [i["cociente"] for i in instancias]
+    m_max = max(i["m"] for i in instancias)
+    grandes = [i for i in instancias if i["m"] == m_max]
+    voraz = _mediana([i["voraz_ms"] for i in grandes])
+    veces = _mediana([i["fuerza_bruta_ms"] for i in grandes]) / voraz if voraz > 0 else 0
+    return {
+        "fb_instancias": str(len(instancias)),
+        "fb_optimos": str(sum(map(_es_optimo, instancias))),
+        "fb_m_min": str(min(i["m"] for i in instancias)),
+        "fb_m_max": str(m_max),
+        "fb_cociente_prom": num(100 * sum(cocientes) / len(cocientes)),
+        "fb_cociente_min": num(100 * min(cocientes)),
+        "fb_veces": num(veces, 0),
+    }
+
+
+def benchmark(filas: list[dict]) -> list[dict]:
+    """Filas del benchmark con sus números; valida el algoritmo y la marca de estimado."""
+    medidas = []
+    for k, f in enumerate(filas):
+        if f["algoritmo"] not in ALGORITMOS:
+            raise ValueError(
+                f"{BENCHMARK}, fila {k + 2}, columna algoritmo: debe ser "
+                f"{' o '.join(ALGORITMOS)} («{f['algoritmo']}»)"
+            )
+        if f["extrapolado"] not in ("0", "1"):
+            raise ValueError(
+                f"{BENCHMARK}, fila {k + 2}, columna extrapolado: debe ser 0 o 1 "
+                f"(«{f['extrapolado']}»)"
+            )
+        estimado = f["extrapolado"] == "1"
+        medidas.append(
+            {
+                "algoritmo": f["algoritmo"],
+                "n": int(_numero(f, "n", BENCHMARK, k)),
+                "m": int(_numero(f, "m", BENCHMARK, k)),
+                "mediana": _numero(f, "mediana_ms", BENCHMARK, k),
+                # Lo estimado no se midió: puede no traer cuartiles ni memoria.
+                "p25": None if estimado else _numero(f, "p25_ms", BENCHMARK, k),
+                "p75": None if estimado else _numero(f, "p75_ms", BENCHMARK, k),
+                "kib": None
+                if estimado and not f["pico_kib"]
+                else _numero(f, "pico_kib", BENCHMARK, k),
+                "estimado": estimado,
+                "cpu": f["cpu"],
+                "python": f["python"],
+            }
+        )
+    for algoritmo in ALGORITMOS:
+        if not any(x["algoritmo"] == algoritmo and not x["estimado"] for x in medidas):
+            raise ValueError(f"{BENCHMARK}: no hay mediciones de {algoritmo}")
+    return medidas
+
+
+def _kib(x: float | None) -> str:
+    return "—" if x is None else num(x, 0)
+
+
+def tabla_eficiencia_voraz(medidas: list[dict]) -> str:
+    voraz = sorted((x for x in medidas if x["algoritmo"] == "voraz"), key=lambda x: x["n"])
+    filas = [
+        [
+            num(x["n"], 0),
+            num(x["m"], 0),
+            duracion(x["mediana"])
+            + ("" if x["estimado"] else f" [{duracion(x['p25'])}, {duracion(x['p75'])}]"),
+            _kib(x["kib"]),
+        ]
+        for x in voraz
+    ]
+    columnas = [
+        "Ingredientes (n)",
+        "Recetas (m)",
+        "Tiempo, mediana [p25, p75]",
+        "Pico de RAM (KiB)",
+    ]
+    return tabla(columnas, filas, numericas=3)
+
+
+def tabla_eficiencia_fuerza_bruta(medidas: list[dict]) -> str:
+    fuerza = sorted(
+        (x for x in medidas if x["algoritmo"] == "fuerza_bruta"), key=lambda x: (x["m"], x["n"])
+    )
+    filas = [
+        [
+            num(x["m"], 0),
+            num(x["n"], 0),
+            duracion(x["mediana"]),
+            _kib(x["kib"]),
+            "estimado" if x["estimado"] else "medido",
+        ]
+        for x in fuerza
+    ]
+    columnas = [
+        "Recetas (m)",
+        "Ingredientes (n)",
+        "Tiempo (mediana)",
+        "Pico de RAM (KiB)",
+        "Origen",
+    ]
+    return tabla(columnas, filas, numericas=4)
+
+
+def cifras_eficiencia(medidas: list[dict]) -> dict[str, str]:
+    voraz = max(
+        (x for x in medidas if x["algoritmo"] == "voraz" and not x["estimado"]),
+        key=lambda x: x["n"],
+    )
+    fuerza = [x for x in medidas if x["algoritmo"] == "fuerza_bruta"]
+    medida = max((x for x in fuerza if not x["estimado"]), key=lambda x: (x["m"], x["n"]))
+    estimadas = [x for x in fuerza if x["estimado"]]
+    extrapolacion = ""
+    if estimadas:
+        lejos = max(estimadas, key=lambda x: (x["m"], x["n"]))
+        extrapolacion = (
+            f" Al extrapolar, con {num(lejos['m'], 0)} recetas tardaría "
+            f"{duracion(lejos['mediana'])}."
+        )
+    primera = medidas[0]
+    return {
+        "bm_n_max": num(voraz["n"], 0),
+        "bm_voraz_tiempo": duracion(voraz["mediana"]),
+        "bm_voraz_kib": _kib(voraz["kib"]),
+        "bm_fb_m": num(medida["m"], 0),
+        "bm_fb_tiempo": duracion(medida["mediana"]),
+        "bm_fb_extrapolacion": extrapolacion,
+        "bm_equipo": html.escape(f"{primera['cpu']}, Python {primera['python']}"),
+    }
+
+
+def figuras_fuerza_bruta(resultados: Path) -> str:
+    """Las gráficas de #27 que ya existan en ``resultados/``."""
+    presentes = [
+        (n, alt, pie) for n, (alt, pie) in FIGURAS_FB.items() if (resultados / n).is_file()
+    ]
+    if not presentes:
+        return ""
+    figuras = "\n".join(
+        f'        <figure>\n          <a href="resultados/{n}"><img src="resultados/{n}" '
+        f'alt="{html.escape(alt)}" loading="lazy"></a>\n'
+        f"          <figcaption><strong>Figura {4 + k}.</strong> {pie}</figcaption>\n"
+        "        </figure>"
+        for k, (n, alt, pie) in enumerate(presentes)
+    )
+    return f'<div class="figuras">\n{figuras}\n      </div>'
+
+
+def fuerza_bruta(resultados: Path = RESULTADOS) -> dict[str, str]:
+    """La comparación contra la fuerza bruta, o el aviso de pendiente si aún no hay datos.
+
+    Lee ``calidad.csv`` (#24) y ``benchmark.csv`` (#27) de ``resultados``; cada
+    parte se muestra en cuanto existe su archivo. El formato está en
+    ``docs/formato_resultados.md``.
+    """
+    filas_calidad = leer_opcional(resultados / CALIDAD, COLUMNAS_CALIDAD)
+    filas_benchmark = leer_opcional(resultados / BENCHMARK, COLUMNAS_BENCHMARK)
+    valores = {"repo": REPO}
+
+    if filas_calidad is None:
+        parte_calidad = FB_PENDIENTE_CALIDAD
+    else:
+        instancias = calidad(filas_calidad)
+        valores |= cifras_calidad(instancias) | {"tabla_calidad": tabla_calidad(instancias)}
+        parte_calidad = FB_CALIDAD.read_text(encoding="utf-8")
+
+    if filas_benchmark is None:
+        parte_eficiencia = FB_PENDIENTE_EFICIENCIA
+    else:
+        medidas = benchmark(filas_benchmark)
+        valores |= cifras_eficiencia(medidas) | {
+            "tabla_eficiencia_voraz": tabla_eficiencia_voraz(medidas),
+            "tabla_eficiencia_fuerza_bruta": tabla_eficiencia_fuerza_bruta(medidas),
+            "figuras_fb": figuras_fuerza_bruta(resultados),
+        }
+        parte_eficiencia = FB_EFICIENCIA.read_text(encoding="utf-8")
+
+    listo = filas_calidad is not None and filas_benchmark is not None
+    enlace = '<a href="{{ repo }}/issues/{n}">#{n}</a>'
+    issues = (24, 27) if listo else (24, 27, 29)
+    estado = ", ".join(enlace.replace("{n}", str(n)) for n in issues)
+    descargas = "".join(
+        f' ·\n            <a href="resultados/{archivo}" download>{nombre}</a>'
+        for archivo, nombre, filas in (
+            (CALIDAD, "Calidad", filas_calidad),
+            (BENCHMARK, "Benchmark", filas_benchmark),
+        )
+        if filas is not None
+    )
+    return {
+        "fb_estado": llenar(
+            f'<p class="estado hecho">Implementado · {estado}</p>'
+            if listo
+            else f'<p class="estado proceso">En desarrollo · {estado}</p>',
+            valores,
+        ),
+        "fb_calidad": llenar(parte_calidad, valores),
+        "fb_eficiencia": llenar(parte_eficiencia, valores),
+        "descargas_fb": descargas,
+    }
+
+
+def archivos_fuerza_bruta(resultados: Path = RESULTADOS) -> list[str]:
+    """Los archivos de #24 y #27 que existen y hay que copiar al sitio."""
+    nombres = (CALIDAD, BENCHMARK, *FIGURAS_FB)
+    return [n for n in nombres if (resultados / n).is_file()]
+
+
 # --- evidencias del desarrollo -------------------------------------------------
 
 
@@ -463,6 +844,7 @@ def valores(resultados: Path = RESULTADOS, pruebas: int | None = None) -> dict[s
         "tabla_no_atendidas": tabla_no_atendidas(resumen),
         "tabla_sensibilidad": tabla_sensibilidad(sensibilidad),
         **cifras(simulacion, resumen, sensibilidad),
+        **fuerza_bruta(resultados),
         **conteo_demo(),
         **evidencias(pruebas),
         "datos_visor": json_en_html(datos_visor()),
@@ -472,15 +854,15 @@ def valores(resultados: Path = RESULTADOS, pruebas: int | None = None) -> dict[s
     }
 
 
-def construir(salida: Path, con_pruebas: bool = True) -> Path:
+def construir(salida: Path, con_pruebas: bool = True, resultados: Path = RESULTADOS) -> Path:
     """Escribe el sitio en ``salida`` y devuelve la ruta de ``index.html``."""
     pruebas = contar_pruebas() if con_pruebas else None
-    pagina = llenar(PLANTILLA.read_text(encoding="utf-8"), valores(RESULTADOS, pruebas))
+    pagina = llenar(PLANTILLA.read_text(encoding="utf-8"), valores(resultados, pruebas))
 
     salida.mkdir(parents=True, exist_ok=True)
     (salida / "resultados").mkdir(exist_ok=True)
-    for nombre in FIGURAS + DESCARGAS:
-        shutil.copy2(RESULTADOS / nombre, salida / "resultados" / nombre)
+    for nombre in (*FIGURAS, *DESCARGAS, *archivos_fuerza_bruta(resultados)):
+        shutil.copy2(resultados / nombre, salida / "resultados" / nombre)
     shutil.copy2(ESTILO, salida / "estilo.css")
     shutil.copy2(VISOR, salida / "visor.js")
     shutil.copy2(SIMULADOR_JS, salida / "simulador.js")

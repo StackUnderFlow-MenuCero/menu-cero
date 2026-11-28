@@ -1,0 +1,12 @@
+algoritmo,n,m,mediana_ms,p25_ms,p75_ms,pico_kib,extrapolado,cpu,python
+voraz,20,8,0.21,0.199,0.223,48,0,CPU de ejemplo,3.13.0
+voraz,100,40,1.3,1.235,1.378,190,0,CPU de ejemplo,3.13.0
+voraz,500,200,7.9,7.505,8.374,920,0,CPU de ejemplo,3.13.0
+voraz,1000,400,17.4,16.53,18.444,1850,0,CPU de ejemplo,3.13.0
+fuerza_bruta,12,4,0.064,0.062,0.067,38,0,CPU de ejemplo,3.13.0
+fuerza_bruta,20,8,1.024,0.993,1.065,46,0,CPU de ejemplo,3.13.0
+fuerza_bruta,28,12,16.384,15.892,17.039,54,0,CPU de ejemplo,3.13.0
+fuerza_bruta,36,16,262.144,254.28,272.63,62,0,CPU de ejemplo,3.13.0
+fuerza_bruta,44,20,4194.304,4068.475,4362.076,70,0,CPU de ejemplo,3.13.0
+fuerza_bruta,100,40,4.39805e+09,,,,1,CPU de ejemplo,3.13.0
+fuerza_bruta,1000,400,1.0329e+118,,,,1,CPU de ejemplo,3.13.0

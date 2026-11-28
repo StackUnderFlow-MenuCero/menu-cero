@@ -1,0 +1,11 @@
+<h4>Calidad: qué tan cerca del óptimo queda el voraz</h4>
+      <div class="prosa">
+        <p>
+          <strong>El voraz encontró el óptimo en {{ fb_optimos }} de {{ fb_instancias }} instancias</strong>
+          de {{ fb_m_min }} a {{ fb_m_max }} recetas. En promedio alcanzó el {{ fb_cociente_prom }} % del valor
+          óptimo, y en la peor instancia, el {{ fb_cociente_min }} %. Con {{ fb_m_max }} recetas, la fuerza
+          bruta tardó {{ fb_veces }} veces lo que el voraz.
+        </p>
+      </div>
+      <p class="tabla-titulo"><strong>Tabla 5.</strong> Calidad del voraz según el número de recetas candidatas: <var>V</var> del voraz entre <var>V</var> del óptimo (promedio y peor caso) y mediana del tiempo de cada algoritmo.</p>
+      {{ tabla_calidad }}
