@@ -1,0 +1,14 @@
+<h4>Eficiencia: tiempo y memoria</h4>
+      <div class="prosa">
+        <p>
+          Con <strong>{{ bm_n_max }} ingredientes, el voraz tarda {{ bm_voraz_tiempo }}</strong> (mediana) y
+          usa como máximo {{ bm_voraz_kib }} KiB de memoria. La fuerza bruta, con {{ bm_fb_m }} recetas, ya
+          tarda {{ bm_fb_tiempo }}.{{ bm_fb_extrapolacion }}
+        </p>
+      </div>
+      <p class="tabla-titulo"><strong>Tabla 6.</strong> Tiempo y memoria del voraz según el tamaño del inventario.</p>
+      {{ tabla_eficiencia_voraz }}
+      <p class="tabla-titulo"><strong>Tabla 7.</strong> Tiempo y memoria de la fuerza bruta según el número de recetas. Los tiempos estimados se extrapolan de los medidos.</p>
+      {{ tabla_eficiencia_fuerza_bruta }}
+      {{ figuras_fb }}
+      <p class="nota">Medido en {{ bm_equipo }}. El análisis de complejidad está en <a href="{{ repo }}/blob/main/docs/diseno.md">docs/diseno.md</a> (#29).</p>

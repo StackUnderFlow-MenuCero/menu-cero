@@ -2,6 +2,8 @@
 
 import json
 import re
+import shutil
+from pathlib import Path
 
 import pytest
 
@@ -161,3 +163,131 @@ def test_el_json_no_cierra_el_script_antes_de_tiempo():
     texto = pagina.json_en_html({"nombre": "</script><b>"})
     assert "</" not in texto
     assert json.loads(texto) == {"nombre": "</script><b>"}
+
+
+# --- voraz contra fuerza bruta (#24, #27) ---------------------------------------
+
+EJEMPLO_FB = Path(__file__).parent / "ejemplos" / "fuerza_bruta"
+
+
+def resultados_con(tmp_path: Path, *archivos: str) -> Path:
+    """Copia de ``resultados/`` con los archivos de ejemplo de la fuerza bruta indicados."""
+    carpeta = tmp_path / "resultados"
+    shutil.copytree(pagina.RESULTADOS, carpeta)
+    for nombre in archivos:
+        shutil.copy2(EJEMPLO_FB / nombre, carpeta / nombre)
+    return carpeta
+
+
+@pytest.fixture(scope="module")
+def sitio_fb(tmp_path_factory):
+    base = tmp_path_factory.mktemp("fb")
+    resultados = resultados_con(base, pagina.CALIDAD, pagina.BENCHMARK)
+    salida = base / "sitio"
+    indice = pagina.construir(salida, con_pruebas=False, resultados=resultados)
+    return salida, indice.read_text(encoding="utf-8")
+
+
+def test_sin_resultados_la_fuerza_bruta_dice_que_esta_en_desarrollo(tmp_path):
+    if (pagina.RESULTADOS / pagina.CALIDAD).exists():
+        pytest.skip("resultados/ ya tiene la calidad de #24")
+    fb = pagina.fuerza_bruta(resultados_con(tmp_path))
+    assert "En desarrollo" in fb["fb_estado"]
+    assert "pendiente" in fb["fb_calidad"] and "pendiente" in fb["fb_eficiencia"]
+    assert fb["descargas_fb"] == ""
+
+
+def test_con_resultados_la_pagina_trae_las_tablas_de_la_fuerza_bruta(sitio_fb):
+    salida, html = sitio_fb
+    assert "{{" not in html and "}}" not in html
+    for n in (5, 6, 7):
+        assert f"<strong>Tabla {n}.</strong>" in html
+    assert 'class="estado hecho">Implementado' in html[: html.index('id="metodologia"')]
+    assert "pendiente" not in html[html.index('id="fuerza-bruta"') : html.index('id="enlaces"')]
+    for nombre in (pagina.CALIDAD, pagina.BENCHMARK):
+        assert f'href="resultados/{nombre}" download' in html
+        assert (salida / "resultados" / nombre).is_file()
+    assert "CPU de ejemplo, Python 3.13.0" in html
+
+
+def test_la_tabla_de_calidad_agrupa_por_recetas(sitio_fb):
+    _, html = sitio_fb
+    filas = pagina.leer(EJEMPLO_FB / pagina.CALIDAD)
+    tabla = html[html.index("<strong>Tabla 5.</strong>") : html.index("<h4>Eficiencia")]
+    assert tabla.count("<tr><td>") == len({f["m"] for f in filas})
+
+
+def test_las_cifras_de_calidad_salen_de_las_instancias():
+    filas = pagina.leer(EJEMPLO_FB / pagina.CALIDAD)
+    c = pagina.cifras_calidad(pagina.calidad(filas))
+    iguales = sum(float(f["valor_voraz"]) == float(f["valor_optimo"]) for f in filas)
+    assert c["fb_instancias"] == str(len(filas))
+    assert c["fb_optimos"] == str(iguales)
+    assert (c["fb_m_min"], c["fb_m_max"]) == ("6", "14")
+    peor = min(float(f["valor_voraz"]) / float(f["valor_optimo"]) for f in filas)
+    assert c["fb_cociente_min"] == pagina.num(100 * peor)
+
+
+def test_cada_parte_aparece_por_separado(tmp_path):
+    fb = pagina.fuerza_bruta(resultados_con(tmp_path, pagina.CALIDAD))
+    assert "Tabla 5." in fb["fb_calidad"]
+    assert "pendiente" in fb["fb_eficiencia"]
+    assert "En desarrollo" in fb["fb_estado"]
+
+
+def test_la_eficiencia_marca_lo_estimado_y_lo_extrapola():
+    medidas = pagina.benchmark(pagina.leer(EJEMPLO_FB / pagina.BENCHMARK))
+    tabla = pagina.tabla_eficiencia_fuerza_bruta(medidas)
+    assert tabla.count(">estimado<") == 2
+    c = pagina.cifras_eficiencia(medidas)
+    assert c["bm_n_max"] == "1,000"
+    assert c["bm_fb_m"] == "20"
+    assert "400 recetas" in c["bm_fb_extrapolacion"]
+
+
+def test_un_archivo_mal_formado_detiene_la_construccion(tmp_path):
+    carpeta = resultados_con(tmp_path)
+    (carpeta / pagina.CALIDAD).write_text("instancia,m\n1,6\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="faltan las columnas semilla"):
+        pagina.fuerza_bruta(carpeta)
+
+    filas = pagina.leer(EJEMPLO_FB / pagina.CALIDAD)
+    filas[2]["valor_voraz"] = str(float(filas[2]["valor_optimo"]) + 1)
+    with pytest.raises(ValueError, match="fila 4: el voraz"):
+        pagina.calidad(filas)
+
+    filas = pagina.leer(EJEMPLO_FB / pagina.BENCHMARK)
+    filas[0]["mediana_ms"] = "rápido"
+    with pytest.raises(ValueError, match="fila 2, columna mediana_ms"):
+        pagina.benchmark(filas)
+    filas[0]["algoritmo"] = "dinamica"
+    with pytest.raises(ValueError, match="columna algoritmo"):
+        pagina.benchmark(filas)
+
+
+@pytest.mark.parametrize(
+    ("ms", "esperado"),
+    [
+        (0.0421, "0.042 ms"),
+        (17.4, "17.4 ms"),
+        (4194.3, "4.2 s"),
+        (3 * 60_000, "3.0 min"),
+        (5 * 3_600_000, "5.0 h"),
+        (40 * 86_400_000, "40 días"),
+        (3 * 365.25 * 86_400_000, "3 años"),
+        (1.0329e118, "3.3 × 10<sup>107</sup> años"),
+    ],
+)
+def test_duracion_elige_la_unidad(ms, esperado):
+    assert pagina.duracion(ms) == esperado
+
+
+def test_las_graficas_de_la_fuerza_bruta_son_opcionales(tmp_path):
+    carpeta = resultados_con(tmp_path, pagina.BENCHMARK)
+    assert pagina.figuras_fuerza_bruta(carpeta) == ""
+    shutil.copy2(carpeta / "merma_a_vs_b.png", carpeta / "voraz_vs_fuerza_bruta.png")
+    figuras = pagina.figuras_fuerza_bruta(carpeta)
+    assert figuras.count("<img ") == 1
+    assert "<strong>Figura 4.</strong>" in figuras
+    assert re.search(r'alt="[^"]{20,}"', figuras)
+    assert "voraz_vs_fuerza_bruta.png" in pagina.archivos_fuerza_bruta(carpeta)
