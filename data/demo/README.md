@@ -47,11 +47,16 @@ La caracterización tiene 10 platillos fijos, 4 secundarios y 18 perecederos. Pa
 
 Ningún valor se ajustó para forzar un resultado. Cualquier cambio futuro se anota aquí.
 
-## Resultado del prototipo v0
+## Resultado del voraz
 
-`uv run python prototipo/voraz_v0.py data/demo --hoy 2026-11-25` aprovecha **3.17 de 5.41 kg en riesgo (58.6 %)** con 8 platillos en el menú del día. Los resultados de los escenarios están en `data/escenarios/README.md`.
+Con hoy = 2026-11-25, los dos voraces aprovechan **3.17 de 5.41 kg en riesgo (58.6 %)**:
+
+- **Voraz principal** (`src/menucero/voraz.py`, #20): 9 platillos y 43 porciones en el menú del día, en menos de 1 ms.
+- **Prototipo v0** (`uv run python prototipo/voraz_v0.py data/demo --hoy 2026-11-25`): 8 platillos y 39 porciones.
+
+Los resultados de los escenarios están en `data/escenarios/README.md`.
 
 ## Pendiente para cerrar #19
 
-- [ ] Pasar la validación de `carga.py` (#13), que todavía no existe.
+- [ ] Pasar la validación de `carga.py` (#13). Ya se probó con la versión de la rama `edguzsv/feature/prototipo` (commit 7162e27): `data/demo/` y los 4 escenarios pasan sin errores. Solo `alta_caducidad/` da 8 advertencias de «ingrediente caducado», que es lo que define ese escenario. Falta que #13 llegue a `main`.
 - [ ] Revisar con Less si el generador (#17) debe reutilizar este catálogo.
